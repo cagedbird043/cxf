@@ -2,7 +2,7 @@ import tomlkit
 
 import pytest
 
-from cxf.cli import Provider, _apply_provider, _prompt, build_parser, main
+from cxf.cli import Provider, _apply_provider, _prompt, _read_provider_probe, _set_provider_probe, build_parser, main
 
 
 def test_parser_accepts_run_provider() -> None:
@@ -75,10 +75,17 @@ review_model = "gpt-5.4"
 
     result = _apply_provider(config, base, provider)
 
-    assert result["cxf_provider"] == "timi"
+    assert "cxf_provider" not in result
     assert result["model_provider"] == "OpenAI"
     assert result["model_providers"]["OpenAI"]["base_url"] == "https://timicc.com"
     assert "Other" not in result["model_providers"]
     assert result["projects"]["/home/user/project"]["trust_level"] == "trusted"
     assert result["features"]["shell_tool"] is True
     assert result["features"]["responses_websockets_v2"] is True
+
+
+def test_provider_probe_is_comment() -> None:
+    text = '#:schema https://example.test/schema.json\nmodel = "gpt-5.5"\n'
+    updated = _set_provider_probe(text, "timi")
+    assert updated.splitlines()[1] == "# cxf: provider = timi"
+    assert _read_provider_probe(updated) == "timi"

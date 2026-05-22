@@ -6,7 +6,7 @@ It keeps provider switching low-entropy while leaving the rest of `~/.codex/conf
 
 It stores managed providers under `~/.codex/cxf/` and only updates provider-related Codex fields:
 
-- `cxf_provider`
+- `# cxf: provider = <name>`
 - `model_provider`
 - `model`
 - `review_model`

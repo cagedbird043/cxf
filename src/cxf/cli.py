@@ -33,6 +33,8 @@ BASE_KEYS = (
     "model_auto_compact_token_limit",
 )
 
+PROBE_PREFIX = "# cxf: provider = "
+
 
 @dataclass(frozen=True)
 class Provider:
@@ -93,6 +95,24 @@ def _is_table_like(value: Any) -> bool:
 def _write_toml(path: Path, doc: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomlkit.dumps(doc))
+
+
+def _read_provider_probe(text: str) -> str:
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith(PROBE_PREFIX):
+            return line[len(PROBE_PREFIX) :].strip()
+    return ""
+
+
+def _set_provider_probe(text: str, provider_id: str) -> str:
+    lines = [line for line in text.splitlines() if not line.strip().startswith(PROBE_PREFIX)]
+    probe = f"{PROBE_PREFIX}{provider_id}"
+    if lines and lines[0].startswith("#:schema"):
+        lines.insert(1, probe)
+    else:
+        lines.insert(0, probe)
+    return "\n".join(lines) + "\n"
 
 
 def _prompt(name: str, default: str | None = None, secret: bool = False) -> str:
@@ -274,7 +294,7 @@ def _set_table(parent: Any, key: str) -> Table:
 
 
 def _apply_provider(config: Any, base: Any, provider: Provider) -> Any:
-    config["cxf_provider"] = provider.provider_id
+    config.pop("cxf_provider", None)
     config["model_provider"] = provider.model_providers
     for key in BASE_KEYS:
         if key in base:
@@ -351,8 +371,9 @@ def cmd_list() -> int:
 
 
 def cmd_current() -> int:
+    raw_config = CODEX_CONFIG_PATH.read_text() if CODEX_CONFIG_PATH.exists() else ""
     config = _read_toml(CODEX_CONFIG_PATH)
-    provider_id = config.get("cxf_provider", "")
+    provider_id = _read_provider_probe(raw_config)
     model_provider = config.get("model_provider", "")
     provider_table = config.get("model_providers", {}).get(model_provider, {})
     base = _load_base()
@@ -361,7 +382,7 @@ def cmd_current() -> int:
     base_url = provider_table.get("base_url", "") if _is_table_like(provider_table) else ""
     websocket = provider_table.get("supports_websockets", "") if _is_table_like(provider_table) else ""
     auth_controlled = bool(provider and auth.get("OPENAI_API_KEY") == provider.api_key)
-    print(f"cxf_provider: {provider_id or '-'}")
+    print(f"provider: {provider_id or '-'}")
     print(f"model_provider: {model_provider or '-'}")
     print(f"model: {config.get('model', base.get('model', '-'))}")
     print(f"review_model: {config.get('review_model', base.get('review_model', '-'))}")
@@ -408,7 +429,7 @@ def cmd_use(provider_id: str) -> int:
     before_auth = AUTH_PATH.read_text() if AUTH_PATH.exists() else ""
     config = _read_toml(CODEX_CONFIG_PATH)
     config = _apply_provider(config, base, provider)
-    after_config = tomlkit.dumps(config)
+    after_config = _set_provider_probe(tomlkit.dumps(config), provider.provider_id)
     CODEX_CONFIG_PATH.write_text(after_config)
     _write_auth(provider.api_key)
     after_auth = AUTH_PATH.read_text()
@@ -434,11 +455,12 @@ def _redact_key(text: str) -> str:
 
 
 def cmd_doctor() -> int:
+    raw_config = CODEX_CONFIG_PATH.read_text() if CODEX_CONFIG_PATH.exists() else ""
     config = _read_toml(CODEX_CONFIG_PATH)
-    provider_id = str(config.get("cxf_provider", ""))
+    provider_id = _read_provider_probe(raw_config)
     if not provider_id:
         print("controlled: no")
-        print("reason: cxf_provider is missing")
+        print("reason: cxf provider comment is missing")
         return 1
     try:
         provider = _load_provider(provider_id)
@@ -447,8 +469,8 @@ def cmd_doctor() -> int:
         print(f"reason: provider file is missing: {provider_id}")
         return 1
 
-    expected = tomlkit.dumps(_apply_provider(_read_toml(CODEX_CONFIG_PATH), _load_base(), provider))
-    actual = tomlkit.dumps(config)
+    expected = _set_provider_probe(tomlkit.dumps(_apply_provider(_read_toml(CODEX_CONFIG_PATH), _load_base(), provider)), provider.provider_id)
+    actual = raw_config
     auth = _read_auth()
     auth_ok = auth.get("OPENAI_API_KEY") == provider.api_key
     if expected == actual and auth_ok:
