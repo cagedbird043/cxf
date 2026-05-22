@@ -50,14 +50,17 @@ _cxf() {
           ;;
         use|edit)
           (( CURRENT > 3 )) && return 1
+          [[ -n "$words[3]" && -f "${HOME}/.codex/cxf/providers/${words[3]}.toml" ]] && return 1
           _cxf_provider_ids
           ;;
         restore)
           (( CURRENT > 3 )) && return 1
+          [[ -n "$words[3]" && -d "${HOME}/.codex/cxf/snapshots/${words[3]}" ]] && return 1
           _cxf_snapshots
           ;;
         completion)
           (( CURRENT > 3 )) && return 1
+          [[ "$words[3]" == "zsh" ]] && return 1
           _values 'shell' zsh
           ;;
         add|list|current|doctor|snapshot)

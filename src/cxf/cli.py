@@ -445,7 +445,10 @@ def cmd_edit(provider_id: str | None) -> int:
                 websocket=True,
             )
         )
-    return subprocess.call([editor, str(target)])
+    result = subprocess.call([editor, str(target)])
+    if result != 0 or not provider_id:
+        return result
+    return cmd_use(provider_id)
 
 
 def cmd_use(provider_id: str) -> int:

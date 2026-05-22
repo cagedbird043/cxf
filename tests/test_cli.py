@@ -2,7 +2,7 @@ import tomlkit
 
 import pytest
 
-from cxf.cli import Provider, _apply_provider, _prompt, _read_provider_probe, _set_provider_probe, build_parser, main
+from cxf.cli import Provider, _apply_provider, _prompt, _read_provider_probe, _set_provider_probe, build_parser, cmd_edit, main
 
 
 def test_parser_accepts_run_provider() -> None:
@@ -89,3 +89,47 @@ def test_provider_probe_is_comment() -> None:
     updated = _set_provider_probe(text, "timi")
     assert updated.splitlines()[1] == "# cxf: provider = timi"
     assert _read_provider_probe(updated) == "timi"
+
+
+def test_edit_reapplies_provider_after_successful_editor(monkeypatch, tmp_path) -> None:
+    provider_dir = tmp_path / "providers"
+    provider_dir.mkdir()
+    provider_path = provider_dir / "timi.toml"
+    provider_path.write_text(
+        """
+model_providers = "OpenAI"
+base_url = "https://timicc.com"
+api_key = "sk-test"
+wire_api = "responses"
+requires_openai_auth = true
+websocket = true
+"""
+    )
+
+    monkeypatch.setattr("cxf.cli.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.cli.CXF_HOME", tmp_path)
+    monkeypatch.setenv("EDITOR", "true")
+    monkeypatch.setattr("subprocess.call", lambda _: 0)
+
+    called: list[str] = []
+    monkeypatch.setattr("cxf.cli.cmd_use", lambda provider_id: called.append(provider_id) or 0)
+
+    assert cmd_edit("timi") == 0
+    assert called == ["timi"]
+
+
+def test_edit_does_not_reapply_on_editor_failure(monkeypatch, tmp_path) -> None:
+    provider_dir = tmp_path / "providers"
+    provider_dir.mkdir()
+    (provider_dir / "timi.toml").write_text('model_providers = "OpenAI"\n')
+
+    monkeypatch.setattr("cxf.cli.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.cli.CXF_HOME", tmp_path)
+    monkeypatch.setenv("EDITOR", "false")
+    monkeypatch.setattr("subprocess.call", lambda _: 7)
+
+    called: list[str] = []
+    monkeypatch.setattr("cxf.cli.cmd_use", lambda provider_id: called.append(provider_id) or 0)
+
+    assert cmd_edit("timi") == 7
+    assert called == []
