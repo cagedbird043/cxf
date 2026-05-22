@@ -1,0 +1,61 @@
+#compdef cxf
+
+_cxf_provider_ids() {
+  local provider_dir="${HOME}/.codex/cxf/providers"
+  [[ -d "$provider_dir" ]] || return
+  local -a providers
+  providers=("${provider_dir}"/*.toml(N:t:r))
+  _describe -t providers 'provider' providers
+}
+
+_cxf_snapshots() {
+  local snapshot_dir="${HOME}/.codex/cxf/snapshots"
+  [[ -d "$snapshot_dir" ]] || return
+  local -a snapshots
+  snapshots=("${snapshot_dir}"/*(N:t))
+  _describe -t snapshots 'snapshot' snapshots
+}
+
+_cxf() {
+  local context state line
+  typeset -A opt_args
+  local -a commands
+
+  commands=(
+    'init:initialize ~/.codex/cxf from existing Codex providers'
+    'add:interactively add a provider'
+    'list:list managed providers'
+    'current:show current provider pointer'
+    'edit:open provider file in $EDITOR'
+    'use:switch Codex provider pointer'
+    'doctor:check whether provider pointer is controlled'
+    'snapshot:snapshot Codex and cxf config files'
+    'restore:restore a snapshot'
+    'completion:print shell completion'
+  )
+
+  _arguments -C \
+    '1:command:->command' \
+    '*::arg:->arg'
+
+  case "$state" in
+    command)
+      _describe -t commands 'cxf command' commands
+      ;;
+    arg)
+      case "$line[1]" in
+        use|edit)
+          _cxf_provider_ids
+          ;;
+        restore)
+          _cxf_snapshots
+          ;;
+        completion)
+          _values 'shell' zsh
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_cxf "$@"

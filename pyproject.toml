@@ -20,5 +20,8 @@ package-dir = { "" = "src" }
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+cxf = ["completions/_cxf"]
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]

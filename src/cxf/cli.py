@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import subprocess
+from importlib.resources import files
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -70,6 +71,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     restore_parser = sub.add_parser("restore", help="Restore a snapshot.")
     restore_parser.add_argument("snapshot", nargs="?", help="Snapshot name. Defaults to latest.")
+
+    completion_parser = sub.add_parser("completion", help="Print shell completion.")
+    completion_parser.add_argument("shell", choices=("zsh",))
 
     return parser
 
@@ -469,6 +473,13 @@ def cmd_restore(snapshot: str | None) -> int:
     return 0
 
 
+def cmd_completion(shell: str) -> int:
+    if shell != "zsh":
+        raise SystemExit(f"unsupported shell: {shell}")
+    print(files("cxf").joinpath("completions/_cxf").read_text(), end="")
+    return 0
+
+
 def main() -> int:
     args = build_parser().parse_args()
     if args.command == "init":
@@ -489,6 +500,8 @@ def main() -> int:
         return cmd_snapshot()
     if args.command == "restore":
         return cmd_restore(args.snapshot)
+    if args.command == "completion":
+        return cmd_completion(args.shell)
     raise SystemExit(f"unknown command: {args.command}")
 
 

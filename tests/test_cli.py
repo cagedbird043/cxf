@@ -9,6 +9,12 @@ def test_parser_accepts_run_provider() -> None:
     assert args.provider == "timi"
 
 
+def test_parser_accepts_zsh_completion() -> None:
+    args = build_parser().parse_args(["completion", "zsh"])
+    assert args.command == "completion"
+    assert args.shell == "zsh"
+
+
 def test_apply_provider_keeps_unrelated_config(monkeypatch, tmp_path) -> None:
     provider_a = tmp_path / "a.toml"
     provider_b = tmp_path / "b.toml"
