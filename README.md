@@ -1,23 +1,34 @@
-# cxcfg
+# cxf
 
-`cxcfg` is a terminal-first config manager for Codex CLI.
+`cxf` is a tiny Codex provider pointer manager.
 
-The goal is simple: keep `~/.codex/config.toml` understandable, reproducible, and easy to switch without a GUI.
+It keeps provider switching low-entropy while leaving the rest of `~/.codex/config.toml` alone.
 
-Planned scope:
+It stores managed providers under `~/.codex/cxf/` and only updates provider-related Codex fields:
 
-- Manage provider definitions outside `~/.codex/config.toml`
-- Generate clean Codex runtime config from small source files
-- Launch Codex with ephemeral config to avoid config rot
-- Provide `doctor`, `snapshot`, `restore`, and `repair` commands
-- Keep transport selection explicit: direct WebSocket, direct SSE, or local proxy
+- `cxf_provider`
+- `model_provider`
+- `model`
+- `review_model`
+- `model_reasoning_effort`
+- `model_context_window`
+- `model_auto_compact_token_limit`
+- `[model_providers.<name>]`
+- `[features].responses_websockets_v2`
+- `~/.codex/auth.json`
 
-Initial command shape:
+Default model settings live in `~/.codex/cxf/base.toml`; new installs default both `model` and `review_model` to `gpt-5.5`.
+
+Commands:
 
 ```text
-cxcfg init
-cxcfg doctor
-cxcfg run <provider>
-cxcfg snapshot
-cxcfg restore
+cxf init [name]
+cxf add
+cxf list
+cxf current
+cxf edit <provider>
+cxf use <provider>
+cxf doctor
+cxf snapshot
+cxf restore [snapshot]
 ```

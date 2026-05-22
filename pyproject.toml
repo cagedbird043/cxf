@@ -3,16 +3,16 @@ requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cxcfg"
+name = "cxf"
 version = "0.1.0"
-description = "Terminal-first Codex config manager"
+description = "Codex provider pointer manager"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Mice", email = "cagedbird043@gmail.com" }]
-dependencies = []
+dependencies = ["tomlkit>=0.13"]
 
 [project.scripts]
-cxcfg = "cxcfg.cli:main"
+cxf = "cxf.cli:main"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
