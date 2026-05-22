@@ -319,6 +319,33 @@ def _apply_provider(config: Any, base: Any, provider: Provider) -> Any:
     return config
 
 
+def _provider_drift(config: Any, base: Any, provider: Provider) -> list[str]:
+    drift: list[str] = []
+    if config.get("model_provider") != provider.model_providers:
+        drift.append("model_provider")
+    for key in BASE_KEYS:
+        if key in base and config.get(key) != base.get(key):
+            drift.append(key)
+
+    model_providers = config.get("model_providers", {})
+    provider_table = model_providers.get(provider.model_providers, {}) if _is_table_like(model_providers) else {}
+    expected_provider = {
+        "name": provider.model_providers,
+        "base_url": provider.base_url,
+        "wire_api": provider.wire_api,
+        "supports_websockets": provider.websocket,
+        "requires_openai_auth": provider.requires_openai_auth,
+    }
+    for key, value in expected_provider.items():
+        if not _is_table_like(provider_table) or provider_table.get(key) != value:
+            drift.append(f"model_providers.{provider.model_providers}.{key}")
+
+    features = config.get("features", {})
+    if not _is_table_like(features) or features.get("responses_websockets_v2") != provider.websocket:
+        drift.append("features.responses_websockets_v2")
+    return drift
+
+
 def _diff(before: str, after: str, fromfile: str, tofile: str) -> str:
     return "".join(
         difflib.unified_diff(
@@ -469,16 +496,17 @@ def cmd_doctor() -> int:
         print(f"reason: provider file is missing: {provider_id}")
         return 1
 
-    expected = _set_provider_probe(tomlkit.dumps(_apply_provider(_read_toml(CODEX_CONFIG_PATH), _load_base(), provider)), provider.provider_id)
-    actual = raw_config
     auth = _read_auth()
     auth_ok = auth.get("OPENAI_API_KEY") == provider.api_key
-    if expected == actual and auth_ok:
+    drift = _provider_drift(config, _load_base(), provider)
+    if not drift and auth_ok:
         print("controlled: yes")
         print(f"provider: {provider.provider_id} -> {provider.model_providers}")
         return 0
     print("controlled: partial")
     print(f"provider: {provider.provider_id} -> {provider.model_providers}")
+    for key in drift:
+        print(f"drift: {key}")
     if not auth_ok:
         print("drift: auth OPENAI_API_KEY")
     print("fix: cxf use " + provider.provider_id)
