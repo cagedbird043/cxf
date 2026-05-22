@@ -281,9 +281,9 @@ def _write_default_base() -> None:
     if "model_reasoning_effort" not in doc:
         doc.add("model_reasoning_effort", "high")
     if "model_context_window" not in doc:
-        doc.add("model_context_window", 400000)
+        doc.add("model_context_window", 272000)
     if "model_auto_compact_token_limit" not in doc:
-        doc.add("model_auto_compact_token_limit", 370000)
+        doc.add("model_auto_compact_token_limit", 240000)
     _write_toml(BASE_PATH, doc)
 
 
