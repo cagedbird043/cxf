@@ -44,6 +44,9 @@ _cxf() {
       ;;
     arg)
       case "$line[1]" in
+        init)
+          _message 'provider id'
+          ;;
         use|edit)
           _cxf_provider_ids
           ;;

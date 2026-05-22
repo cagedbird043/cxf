@@ -21,5 +21,7 @@ if [ -d "$(dirname "$completion_target")" ]; then
   fi
 fi
 
+rm -f "${ZDOTDIR:-$HOME}"/.zcompdump "${ZDOTDIR:-$HOME}"/.zcompdump.* 2>/dev/null || true
+
 echo "installed: $(command -v cxf)"
 echo "completion: $completion_target"
