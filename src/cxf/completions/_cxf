@@ -45,16 +45,23 @@ _cxf() {
     arg)
       case "$line[1]" in
         init)
+          (( CURRENT > 3 )) && return 1
           _message 'provider id'
           ;;
         use|edit)
+          (( CURRENT > 3 )) && return 1
           _cxf_provider_ids
           ;;
         restore)
+          (( CURRENT > 3 )) && return 1
           _cxf_snapshots
           ;;
         completion)
+          (( CURRENT > 3 )) && return 1
           _values 'shell' zsh
+          ;;
+        add|list|current|doctor|snapshot)
+          return 1
           ;;
       esac
       ;;

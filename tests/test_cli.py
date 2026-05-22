@@ -1,6 +1,8 @@
 import tomlkit
 
-from cxf.cli import Provider, _apply_provider, build_parser
+import pytest
+
+from cxf.cli import Provider, _apply_provider, _prompt, build_parser, main
 
 
 def test_parser_accepts_run_provider() -> None:
@@ -13,6 +15,22 @@ def test_parser_accepts_zsh_completion() -> None:
     args = build_parser().parse_args(["completion", "zsh"])
     assert args.command == "completion"
     assert args.shell == "zsh"
+
+
+def test_extra_arguments_are_short_errors(capsys) -> None:
+    assert main(["completion", "zsh", "zsh"]) == 2
+    captured = capsys.readouterr()
+    assert "unexpected argument: zsh" in captured.err
+
+
+def test_prompt_cancel_is_short_error(monkeypatch) -> None:
+    def raise_keyboard_interrupt(_: str) -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("builtins.input", raise_keyboard_interrupt)
+    with pytest.raises(SystemExit) as exc:
+        _prompt("provider id")
+    assert str(exc.value) == "\ncancelled"
 
 
 def test_apply_provider_keeps_unrelated_config(monkeypatch, tmp_path) -> None:

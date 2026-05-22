@@ -56,18 +56,20 @@ def build_parser() -> argparse.ArgumentParser:
     init_parser = sub.add_parser("init", help="Initialize ~/.codex/cxf from existing Codex providers.")
     init_parser.add_argument("name", nargs="?", help="Provider id for the current Codex provider.")
 
-    sub.add_parser("add", help="Interactively add a provider.")
-    sub.add_parser("list", help="List managed providers.")
-    sub.add_parser("current", help="Show current managed provider pointer.")
+    for command, help_text in (
+        ("add", "Interactively add a provider."),
+        ("list", "List managed providers."),
+        ("current", "Show current managed provider pointer."),
+        ("doctor", "Check whether the provider pointer is still controlled by cxf."),
+        ("snapshot", "Snapshot Codex and cxf config files."),
+    ):
+        sub.add_parser(command, help=help_text)
 
     edit_parser = sub.add_parser("edit", help="Open a provider file in $EDITOR.")
     edit_parser.add_argument("provider", nargs="?", help="Provider id. Opens the cxf directory when omitted.")
 
     use_parser = sub.add_parser("use", help="Switch Codex to a managed provider.")
     use_parser.add_argument("provider", help="Provider id.")
-
-    sub.add_parser("doctor", help="Check whether the provider pointer is still controlled by cxf.")
-    sub.add_parser("snapshot", help="Snapshot Codex and cxf config files.")
 
     restore_parser = sub.add_parser("restore", help="Restore a snapshot.")
     restore_parser.add_argument("snapshot", nargs="?", help="Snapshot name. Defaults to latest.")
@@ -95,7 +97,10 @@ def _write_toml(path: Path, doc: Any) -> None:
 
 def _prompt(name: str, default: str | None = None, secret: bool = False) -> str:
     suffix = f" [{default}]" if default is not None else ""
-    value = input(f"{name}{suffix}: ").strip()
+    try:
+        value = input(f"{name}{suffix}: ").strip()
+    except (KeyboardInterrupt, EOFError):
+        raise SystemExit("\ncancelled")
     if not value and default is not None:
         return default
     if not value and secret:
@@ -350,11 +355,28 @@ def cmd_current() -> int:
     provider_id = config.get("cxf_provider", "")
     model_provider = config.get("model_provider", "")
     provider_table = config.get("model_providers", {}).get(model_provider, {})
+    base = _load_base()
+    provider = _load_provider(str(provider_id)) if provider_id and (PROVIDERS_DIR / f"{provider_id}.toml").exists() else None
+    auth = _read_auth()
     base_url = provider_table.get("base_url", "") if _is_table_like(provider_table) else ""
+    websocket = provider_table.get("supports_websockets", "") if _is_table_like(provider_table) else ""
+    auth_controlled = bool(provider and auth.get("OPENAI_API_KEY") == provider.api_key)
     print(f"cxf_provider: {provider_id or '-'}")
     print(f"model_provider: {model_provider or '-'}")
+    print(f"model: {config.get('model', base.get('model', '-'))}")
+    print(f"review_model: {config.get('review_model', base.get('review_model', '-'))}")
     print(f"base_url: {base_url or '-'}")
+    print(f"websocket: {_format_bool(websocket)}")
+    print(f"auth: {'controlled' if auth_controlled else 'unknown'}")
     return 0
+
+
+def _format_bool(value: Any) -> str:
+    if value is True:
+        return "on"
+    if value is False:
+        return "off"
+    return "-"
 
 
 def cmd_edit(provider_id: str | None) -> int:
@@ -480,8 +502,20 @@ def cmd_completion(shell: str) -> int:
     return 0
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def _reject_extra_args(args: argparse.Namespace) -> bool:
+    extra = getattr(args, "extra", None)
+    if extra:
+        print(f"error: unexpected argument: {extra[0]}", file=os.sys.stderr)
+        return True
+    return False
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args, extra = parser.parse_known_args(argv)
+    args.extra = extra
+    if _reject_extra_args(args):
+        return 2
     if args.command == "init":
         return cmd_init(args.name)
     if args.command == "add":
