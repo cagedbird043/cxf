@@ -16,6 +16,14 @@ _cxf_snapshots() {
   _describe -t snapshots 'snapshot' snapshots
 }
 
+_cxf_claude_provider_ids() {
+  local provider_dir="${HOME}/.codex/cxf/claude/providers"
+  [[ -d "$provider_dir" ]] || return
+  local -a providers
+  providers=("${provider_dir}"/*.toml(N:t:r))
+  _describe -t providers 'claude provider' providers
+}
+
 _cxf() {
   local context state line
   typeset -A opt_args
@@ -32,6 +40,7 @@ _cxf() {
     'snapshot:snapshot Codex and cxf config files'
     'restore:restore a snapshot'
     'completion:print shell completion'
+    'claude:manage Claude Code provider pointer'
   )
 
   _arguments -C \
@@ -62,6 +71,27 @@ _cxf() {
           (( CURRENT > 3 )) && return 1
           [[ "$words[3]" == "zsh" ]] && return 1
           _values 'shell' zsh
+          ;;
+        claude)
+          local -a claude_commands
+          claude_commands=(
+            'init:initialize Claude provider profiles'
+            'list:list Claude providers'
+            'current:show current Claude provider pointer'
+            'edit:open Claude provider file in $EDITOR'
+            'use:switch Claude provider pointer'
+            'doctor:check whether Claude provider pointer is controlled'
+          )
+          if (( CURRENT == 3 )); then
+            _describe -t claude-commands 'claude command' claude_commands
+          elif [[ "$words[3]" == (use|edit) ]]; then
+            [[ -n "$words[4]" && -f "${HOME}/.codex/cxf/claude/providers/${words[4]}.toml" ]] && return 1
+            _cxf_claude_provider_ids
+          elif [[ "$words[3]" == init ]]; then
+            _message 'provider id'
+          else
+            return 1
+          fi
           ;;
         add|list|current|doctor|snapshot)
           return 1

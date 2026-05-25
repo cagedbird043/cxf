@@ -2,7 +2,7 @@ import tomlkit
 
 import pytest
 
-from cxf.cli import Provider, _apply_provider, _prompt, _read_provider_probe, _set_provider_probe, build_parser, cmd_edit, main
+from cxf.cli import Provider, _apply_claude_provider, _default_deepseek_claude_provider, _prompt, _apply_provider, _read_provider_probe, _set_provider_probe, build_parser, cmd_edit, main
 
 
 def test_parser_accepts_run_provider() -> None:
@@ -133,3 +133,41 @@ def test_edit_does_not_reapply_on_editor_failure(monkeypatch, tmp_path) -> None:
 
     assert cmd_edit("timi") == 7
     assert called == []
+
+
+def test_parser_accepts_claude_use_provider() -> None:
+    args = build_parser().parse_args(["claude", "use", "deepseek"])
+    assert args.command == "claude"
+    assert args.claude_command == "use"
+    assert args.provider == "deepseek"
+
+
+def test_deepseek_claude_provider_defaults() -> None:
+    provider = _default_deepseek_claude_provider("sk-test")
+    assert provider.provider_id == "deepseek"
+    assert provider.env["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+    assert provider.env["ANTHROPIC_AUTH_TOKEN"] == "sk-test"
+    assert provider.env["ANTHROPIC_MODEL"] == "deepseek-v4-pro[1m]"
+    assert provider.env["ANTHROPIC_DEFAULT_HAIKU_MODEL"] == "deepseek-v4-flash"
+    assert provider.env["CLAUDE_CODE_EFFORT_LEVEL"] == "max"
+
+
+def test_apply_claude_provider_preserves_unmanaged_env() -> None:
+    settings = {
+        "env": {
+            "GITHUB_TOKEN": "gh-test",
+            "ANTHROPIC_BASE_URL": "https://old.example",
+            "ANTHROPIC_API_KEY": "old-key",
+        },
+        "permissions": {"allow": ["Read(*)"]},
+        "model": "old-model",
+    }
+    provider = _default_deepseek_claude_provider("sk-test")
+    result = _apply_claude_provider(settings, provider)
+    assert result["env"]["GITHUB_TOKEN"] == "gh-test"
+    assert result["env"]["CXF_CLAUDE_PROVIDER"] == "deepseek"
+    assert result["env"]["ANTHROPIC_BASE_URL"] == "https://api.deepseek.com/anthropic"
+    assert result["env"]["ANTHROPIC_AUTH_TOKEN"] == "sk-test"
+    assert "ANTHROPIC_API_KEY" not in result["env"]
+    assert result["model"] == "deepseek-v4-pro[1m]"
+    assert result["permissions"] == {"allow": ["Read(*)"]}

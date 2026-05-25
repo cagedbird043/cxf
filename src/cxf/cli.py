@@ -24,6 +24,11 @@ SNAPSHOTS_DIR = CXF_HOME / "snapshots"
 BASE_PATH = CXF_HOME / "base.toml"
 CODEX_CONFIG_PATH = CODEX_HOME / "config.toml"
 AUTH_PATH = CODEX_HOME / "auth.json"
+CLAUDE_HOME = Path.home() / ".claude"
+CLAUDE_SETTINGS_PATH = CLAUDE_HOME / "settings.json"
+CLAUDE_CXF_HOME = CXF_HOME / "claude"
+CLAUDE_PROVIDERS_DIR = CLAUDE_CXF_HOME / "providers"
+CLAUDE_PROVIDER_ENV = "CXF_CLAUDE_PROVIDER"
 
 BASE_KEYS = (
     "model",
@@ -49,6 +54,16 @@ class Provider:
     @property
     def path(self) -> Path:
         return PROVIDERS_DIR / f"{self.provider_id}.toml"
+
+
+@dataclass(frozen=True)
+class ClaudeProvider:
+    provider_id: str
+    env: dict[str, str]
+
+    @property
+    def path(self) -> Path:
+        return CLAUDE_PROVIDERS_DIR / f"{self.provider_id}.toml"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -78,6 +93,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     completion_parser = sub.add_parser("completion", help="Print shell completion.")
     completion_parser.add_argument("shell", choices=("zsh",))
+
+    claude_parser = sub.add_parser("claude", help="Manage Claude Code provider pointer.")
+    claude_sub = claude_parser.add_subparsers(dest="claude_command", required=True)
+    claude_init = claude_sub.add_parser("init", help="Initialize Claude providers from current settings plus DeepSeek default.")
+    claude_init.add_argument("name", nargs="?", help="Provider id for current Claude settings.")
+    for command, help_text in (
+        ("list", "List managed Claude providers."),
+        ("current", "Show current Claude provider pointer."),
+        ("doctor", "Check whether Claude settings are controlled by cxf."),
+    ):
+        claude_sub.add_parser(command, help=help_text)
+    claude_edit = claude_sub.add_parser("edit", help="Open a Claude provider file in $EDITOR.")
+    claude_edit.add_argument("provider", nargs="?", help="Provider id. Opens the Claude cxf directory when omitted.")
+    claude_use = claude_sub.add_parser("use", help="Switch Claude Code to a managed provider.")
+    claude_use.add_argument("provider", help="Provider id.")
 
     return parser
 
@@ -357,6 +387,127 @@ def _diff(before: str, after: str, fromfile: str, tofile: str) -> str:
     )
 
 
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text())
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _write_json(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+
+
+def _ensure_claude_layout() -> None:
+    CLAUDE_PROVIDERS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _default_deepseek_claude_provider(api_key: str = "") -> ClaudeProvider:
+    return ClaudeProvider("deepseek", {
+        "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+        "ANTHROPIC_AUTH_TOKEN": api_key,
+        "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+        "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+        "CLAUDE_CODE_EFFORT_LEVEL": "max",
+    })
+
+
+def _claude_provider_doc(provider: ClaudeProvider) -> Any:
+    doc = tomlkit.document()
+    env = tomlkit.table()
+    for key, value in provider.env.items():
+        env.add(key, value)
+    doc.add("env", env)
+    return doc
+
+
+def _write_claude_provider(provider: ClaudeProvider) -> None:
+    _write_toml(provider.path, _claude_provider_doc(provider))
+
+
+def _load_claude_provider(provider_id: str) -> ClaudeProvider:
+    path = CLAUDE_PROVIDERS_DIR / f"{provider_id}.toml"
+    if not path.exists():
+        raise SystemExit(f"claude provider not found: {provider_id}")
+    doc = _read_toml(path)
+    raw_env = doc.get("env", {})
+    env = {str(k): str(v) for k, v in raw_env.items()} if _is_table_like(raw_env) else {}
+    return ClaudeProvider(provider_id, env)
+
+
+def _claude_provider_ids() -> list[str]:
+    if not CLAUDE_PROVIDERS_DIR.exists():
+        return []
+    return sorted(path.stem for path in CLAUDE_PROVIDERS_DIR.glob("*.toml") if path.is_file())
+
+
+def _extract_current_claude_provider(name: str) -> ClaudeProvider:
+    settings = _read_json(CLAUDE_SETTINGS_PATH)
+    env = settings.get("env", {}) if isinstance(settings.get("env"), dict) else {}
+    keys = [
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL",
+        "ANTHROPIC_DEFAULT_SONNET_MODEL",
+        "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_CUSTOM_MODEL_OPTION",
+        "CLAUDE_CODE_SUBAGENT_MODEL",
+        "CLAUDE_CODE_EFFORT_LEVEL",
+        "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY",
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+        "ENABLE_TOOL_SEARCH",
+    ]
+    provider_env = {key: str(env[key]) for key in keys if key in env and str(env[key])}
+    if "ANTHROPIC_MODEL" not in provider_env and settings.get("model"):
+        provider_env["ANTHROPIC_MODEL"] = str(settings["model"])
+    return ClaudeProvider(name, provider_env)
+
+
+def _apply_claude_provider(settings: dict[str, Any], provider: ClaudeProvider) -> dict[str, Any]:
+    env = settings.get("env")
+    if not isinstance(env, dict):
+        env = {}
+        settings["env"] = env
+    managed = {
+        "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
+        "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+        "ANTHROPIC_CUSTOM_MODEL_OPTION", "CLAUDE_CODE_SUBAGENT_MODEL", "CLAUDE_CODE_EFFORT_LEVEL",
+        "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY", "CLAUDE_CODE_MAX_CONTEXT_TOKENS", "ENABLE_TOOL_SEARCH",
+        CLAUDE_PROVIDER_ENV,
+    }
+    for key in managed:
+        env.pop(key, None)
+    env[CLAUDE_PROVIDER_ENV] = provider.provider_id
+    for key, value in provider.env.items():
+        if value:
+            env[key] = value
+    if provider.env.get("ANTHROPIC_MODEL"):
+        settings["model"] = provider.env["ANTHROPIC_MODEL"]
+    return settings
+
+
+def _redact_claude_settings(text: str) -> str:
+    try:
+        data = json.loads(text) if text else {}
+    except Exception:
+        return _redact_key(text)
+    env = data.get("env")
+    if isinstance(env, dict):
+        for key in ("ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "GITHUB_TOKEN"):
+            if env.get(key):
+                env[key] = "***"
+    return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+
+
 def cmd_init(name: str | None) -> int:
     _ensure_layout()
     _write_default_base()
@@ -548,6 +699,97 @@ def cmd_restore(snapshot: str | None) -> int:
     return 0
 
 
+def cmd_claude_init(name: str | None) -> int:
+    _ensure_claude_layout()
+    if not (CLAUDE_PROVIDERS_DIR / "deepseek.toml").exists():
+        _write_claude_provider(_default_deepseek_claude_provider())
+    current_name = name or "anthropic"
+    if not (CLAUDE_PROVIDERS_DIR / f"{current_name}.toml").exists():
+        _write_claude_provider(_extract_current_claude_provider(current_name))
+    print(f"initialized: {CLAUDE_CXF_HOME}")
+    for provider_id in _claude_provider_ids():
+        provider = _load_claude_provider(provider_id)
+        print(f"claude provider: {provider.provider_id} -> {provider.env.get('ANTHROPIC_BASE_URL', '-')} {provider.env.get('ANTHROPIC_MODEL', '-')}")
+    return 0
+
+
+def cmd_claude_list() -> int:
+    _ensure_claude_layout()
+    for provider_id in _claude_provider_ids():
+        provider = _load_claude_provider(provider_id)
+        print(f"{provider.provider_id}\t{provider.env.get('ANTHROPIC_BASE_URL', '-')}\t{provider.env.get('ANTHROPIC_MODEL', '-')}")
+    return 0
+
+
+def cmd_claude_current() -> int:
+    settings = _read_json(CLAUDE_SETTINGS_PATH)
+    env = settings.get("env", {}) if isinstance(settings.get("env"), dict) else {}
+    print(f"claude_provider: {env.get(CLAUDE_PROVIDER_ENV, '-') or '-'}")
+    print(f"base_url: {env.get('ANTHROPIC_BASE_URL', '-') or '-'}")
+    print(f"model: {env.get('ANTHROPIC_MODEL', settings.get('model', '-')) or '-'}")
+    print(f"opus: {env.get('ANTHROPIC_DEFAULT_OPUS_MODEL', '-') or '-'}")
+    print(f"sonnet: {env.get('ANTHROPIC_DEFAULT_SONNET_MODEL', '-') or '-'}")
+    print(f"haiku: {env.get('ANTHROPIC_DEFAULT_HAIKU_MODEL', '-') or '-'}")
+    print(f"subagent: {env.get('CLAUDE_CODE_SUBAGENT_MODEL', '-') or '-'}")
+    return 0
+
+
+def cmd_claude_edit(provider_id: str | None) -> int:
+    _ensure_claude_layout()
+    target = CLAUDE_PROVIDERS_DIR / f"{provider_id}.toml" if provider_id else CLAUDE_CXF_HOME
+    editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
+    if not editor:
+        raise SystemExit("EDITOR is not set")
+    if provider_id and not target.exists():
+        _write_claude_provider(_extract_current_claude_provider(provider_id))
+    result = subprocess.call([editor, str(target)])
+    if result != 0 or not provider_id:
+        return result
+    return cmd_claude_use(provider_id)
+
+
+def cmd_claude_use(provider_id: str) -> int:
+    _ensure_claude_layout()
+    provider = _load_claude_provider(provider_id)
+    before = CLAUDE_SETTINGS_PATH.read_text() if CLAUDE_SETTINGS_PATH.exists() else ""
+    settings = _read_json(CLAUDE_SETTINGS_PATH)
+    after_doc = _apply_claude_provider(settings, provider)
+    after = json.dumps(after_doc, ensure_ascii=False, indent=2) + "\n"
+    _write_json(CLAUDE_SETTINGS_PATH, after_doc)
+    diff = _diff(_redact_claude_settings(before), _redact_claude_settings(after), str(CLAUDE_SETTINGS_PATH), str(CLAUDE_SETTINGS_PATH))
+    if diff:
+        print(diff, end="")
+    print(f"claude current: {provider.provider_id} -> {provider.env.get('ANTHROPIC_BASE_URL', '-')} {provider.env.get('ANTHROPIC_MODEL', '-')}")
+    return 0
+
+
+def cmd_claude_doctor() -> int:
+    settings = _read_json(CLAUDE_SETTINGS_PATH)
+    env = settings.get("env", {}) if isinstance(settings.get("env"), dict) else {}
+    provider_id = str(env.get(CLAUDE_PROVIDER_ENV, ""))
+    if not provider_id:
+        print("controlled: no")
+        print(f"reason: env.{CLAUDE_PROVIDER_ENV} is missing")
+        return 1
+    try:
+        provider = _load_claude_provider(provider_id)
+    except SystemExit:
+        print("controlled: no")
+        print(f"reason: claude provider file is missing: {provider_id}")
+        return 1
+    drift = [key for key, value in provider.env.items() if value and env.get(key) != value]
+    if not drift:
+        print("controlled: yes")
+        print(f"claude provider: {provider.provider_id} -> {provider.env.get('ANTHROPIC_BASE_URL', '-')}")
+        return 0
+    print("controlled: partial")
+    print(f"claude provider: {provider.provider_id} -> {provider.env.get('ANTHROPIC_BASE_URL', '-')}")
+    for key in drift:
+        print(f"drift: env.{key}")
+    print("fix: cxf claude use " + provider.provider_id)
+    return 2
+
+
 def cmd_completion(shell: str) -> int:
     if shell != "zsh":
         raise SystemExit(f"unsupported shell: {shell}")
@@ -589,6 +831,19 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_restore(args.snapshot)
     if args.command == "completion":
         return cmd_completion(args.shell)
+    if args.command == "claude":
+        if args.claude_command == "init":
+            return cmd_claude_init(args.name)
+        if args.claude_command == "list":
+            return cmd_claude_list()
+        if args.claude_command == "current":
+            return cmd_claude_current()
+        if args.claude_command == "edit":
+            return cmd_claude_edit(args.provider)
+        if args.claude_command == "use":
+            return cmd_claude_use(args.provider)
+        if args.claude_command == "doctor":
+            return cmd_claude_doctor()
     raise SystemExit(f"unknown command: {args.command}")
 
 
