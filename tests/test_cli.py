@@ -273,6 +273,8 @@ def test_edit_yes_flag_creates_without_prompt(monkeypatch, tmp_path) -> None:
     prompts = iter(["OpenAI", "https://example.com", "sk-test", "responses", "yes"])
     monkeypatch.setattr("builtins.input", lambda _="": next(prompts))
     monkeypatch.setattr("getpass.getpass", lambda _="": next(prompts))
+    # prevent _cmd_edit from writing to real Codex config via _cmd_use
+    monkeypatch.setattr("cxf.cli._cmd_use", lambda provider_id: 0)
 
     assert _cmd_edit("newprov", yes=True) == 0
 
