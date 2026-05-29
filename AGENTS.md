@@ -46,6 +46,7 @@ ux.py       — i18n（`_()` 函数，60+ 翻译键）、Rich 输出面板、dif
 
 ### 📁 代码规范
 
+- **所有 Codex provider 的 `model_providers` 字段必须为 `"OpenAI"`**。Codex 以 `model_provider` 为 session key 关联历史记录，一旦改名所有历史丢失。不同后端只能通过改 `base_url`/`api_key` 区分，不要改 `model_providers` 名字。
 - 新功能必须有测试。测试改完后跑 `pytest tests/ -q`，全绿才能提。
 - 测试必须全隔离：用 `_patch_paths(monkeypatch, tmp_path)` 模拟所有路径。
 - 不改 `ux.py` 的 `_()` 翻译字典结构（`(zh, en)` tuple），加新翻译键可以。

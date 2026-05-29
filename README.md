@@ -141,6 +141,11 @@ cxf 只操作以下 Codex 配置字段：
 
 其他所有 Codex 配置保持不动。
 
+## 重要说明
+
+- **`model_providers` 必须始终为 `"OpenAI"`**。Codex 以 `model_provider` 字段作为 session key 关联历史记录，一旦改名字所有会话历史丢失。不同后端只能通过调整 `base_url` 和 API key 来切换，不要改动 `model_providers` 名称。
+- 切换后端后 Codex 历史记录不会丢失（因为 `model_provider` 没变），但之前的对话上下文仍会保留。
+
 ## 架构
 
 cxf 分为 6 个模块：
