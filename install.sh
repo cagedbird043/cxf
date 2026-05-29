@@ -15,15 +15,13 @@ exec "$venv_dir/bin/cxf" "\$@"
 WRAP
 chmod +x "$bin_dir/cxf"
 
+completion_src="$repo_dir/src/cxf/completions/_cxf"
 completion_target="/usr/local/share/zsh/site-functions/_cxf"
-if [ -d "$(dirname "$completion_target")" ]; then
+if [ -f "$completion_src" ] && [ -d "$(dirname "$completion_target")" ]; then
   if [ -w "$(dirname "$completion_target")" ]; then
-    "$bin_dir/cxf" completion zsh > "$completion_target"
+    install -m 0644 "$completion_src" "$completion_target"
   elif command -v sudo >/dev/null 2>&1; then
-    tmp_file="$(mktemp)"
-    "$bin_dir/cxf" completion zsh > "$tmp_file"
-    sudo -S install -m 0644 "$tmp_file" "$completion_target"
-    rm -f "$tmp_file"
+    sudo -S install -m 0644 "$completion_src" "$completion_target"
   fi
 fi
 
