@@ -58,6 +58,7 @@ from cxf.ux import (
     _format_bool,
     _prompt,
     _prompt_bool,
+    _warn,
     console,
     print_claude_current_panel,
     print_current_panel,
@@ -229,6 +230,7 @@ def _cmd_use(provider_id: str | None) -> int:
     config = _apply_provider(config, base, provider)
     after_config = _set_provider_probe(tomlkit.dumps(config), provider.provider_id)
     CODEX_CONFIG_PATH.write_text(after_config, encoding="utf-8")
+    CODEX_CONFIG_PATH.chmod(0o600)
     _write_auth(provider.api_key)
     after_auth = AUTH_PATH.read_text(encoding="utf-8")
 
@@ -307,6 +309,11 @@ def _cmd_edit(provider_id: str | None, yes: bool = False) -> int:
     result = subprocess.call([editor, str(target)])
     if result != 0:
         return result
+    # reload after editing to validate
+    edited = _load_provider(provider_id)
+    if not edited.api_key:
+        _warn("err.edit.no_api_key", provider_id)
+        return 1
     return _cmd_use(provider_id)
 
 
@@ -449,7 +456,7 @@ def _cmd_claude_edit(provider_id: str | None) -> int:
 def _cmd_claude_use(provider_id: str | None) -> int:
     if provider_id is None:
         _claude_subcommand_help("use")
-        return 0
+        return 1
     _ensure_claude_layout()
     provider = _load_claude_provider(provider_id)
     before = CLAUDE_SETTINGS_PATH.read_text(encoding="utf-8") if CLAUDE_SETTINGS_PATH.exists() else ""

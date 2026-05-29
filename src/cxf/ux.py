@@ -250,6 +250,10 @@ _I18N: dict[str, tuple[str, str]] = {
         "api_key is required in non-interactive mode",
         "非交互模式下必须指定 api_key",
     ),
+    "err.edit.no_api_key": (
+        "api_key is empty in provider '{}'. Aborting apply.",
+        "provider '{}' 的 api_key 为空，已中止切换。",
+    ),
     # -- generic utility strings --
     "yes": ("yes", "是"),
     "no": ("no", "否"),

@@ -1,5 +1,6 @@
 import argparse
 import json
+from pathlib import Path
 
 import tomlkit
 
@@ -327,8 +328,17 @@ def test_edit_prompts_before_creating_new_provider(monkeypatch, tmp_path) -> Non
 def test_edit_yes_flag_creates_without_prompt(monkeypatch, tmp_path) -> None:
     paths = _patch_paths(monkeypatch, tmp_path)
     monkeypatch.setenv("EDITOR", "true")
-    monkeypatch.setattr("subprocess.call", lambda _: 0)
     monkeypatch.setattr("cxf.cli._cmd_use", lambda provider_id: 0)
+
+    # simulate user filling in api_key after editing
+    def mock_editor(args):
+        path = Path(args[-1])
+        doc = tomlkit.parse(path.read_text(encoding="utf-8"))
+        doc["api_key"] = "sk-edited"
+        path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+        return 0
+
+    monkeypatch.setattr("subprocess.call", mock_editor)
 
     assert _cmd_edit("newprov", yes=True) == 0
     # stub file should be written with defaults
@@ -338,6 +348,22 @@ def test_edit_yes_flag_creates_without_prompt(monkeypatch, tmp_path) -> None:
     assert doc["model_providers"] == "OpenAI"
     assert doc["wire_api"] == "responses"
     assert doc["websocket"] is True
+    assert doc["api_key"] == "sk-edited"
+
+
+def test_edit_empty_api_key_aborts(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    monkeypatch.setenv("EDITOR", "true")
+    # editor returns success but user left api_key empty in stub
+    monkeypatch.setattr("subprocess.call", lambda _: 0)
+    monkeypatch.setattr("cxf.cli._cmd_use", lambda provider_id: 0)
+
+    assert _cmd_edit("emptykey-prov", yes=True) == 1
+    # stub should still exist on disk, just not applied
+    target = paths["provider_dir"] / "emptykey-prov.toml"
+    assert target.exists()
+    doc = tomlkit.parse(target.read_text(encoding="utf-8"))
+    assert doc["api_key"] == ""
 
 
 # ── remove ─────────────────────────────────────────────────────────────
@@ -715,9 +741,9 @@ def test_cmd_claude_use_switches_provider(monkeypatch, tmp_path, capsys) -> None
     assert _cmd_claude_use("deepseek") == 0
 
 
-def test_cmd_claude_use_no_arg_shows_help(capsys) -> None:
+def test_cmd_claude_use_no_arg_returns_1(capsys) -> None:
     rc = _cmd_claude_use(None)
-    assert rc in (0, 1)
+    assert rc == 1
     captured = capsys.readouterr()
     assert "usage:" in captured.out
 
