@@ -117,6 +117,10 @@ def build_parser() -> argparse.ArgumentParser:
     # status (was doctor)
     sub.add_parser("status", help=_("help.status"))
 
+    # completion
+    comp_p = sub.add_parser("completion", help="Generate shell completion script")
+    comp_p.add_argument("shell", nargs="?", default="zsh", choices=("zsh", "bash"), help="Shell type (zsh, bash)")
+
     # claude subcommand group
     claude_p = sub.add_parser("claude", help=_("help.claude"))
     claude_sub = claude_p.add_subparsers(dest="claude_command")
@@ -362,6 +366,118 @@ def _cmd_rename(old: str, new: str) -> int:
         _error("err.rename.exists", new)
     old_path.rename(new_path)
     print(_("msg.renamed", old, new))
+    return 0
+
+
+def _cmd_completion(shell: str) -> int:
+    """Print shell completion script."""
+    if shell == "zsh":
+        print("""#compdef cxf
+
+_cxf_provider_ids() {
+  local provider_dir="${XDG_CONFIG_HOME:-$HOME/.config}/cxf/providers"
+  [[ -d "$provider_dir" ]] || return
+  local -a providers
+  providers=("${provider_dir}"/*.toml(N:t:r))
+  _describe -t providers 'provider' providers
+}
+
+_cxf_claude_provider_ids() {
+  local provider_dir="${XDG_CONFIG_HOME:-$HOME/.config}/cxf/claude/providers"
+  [[ -d "$provider_dir" ]] || return
+  local -a providers
+  providers=("${provider_dir}"/*.toml(N:t:r))
+  _describe -t providers 'claude provider' providers
+}
+
+_cxf_cmd_descriptions() {
+  local -a _cmds
+  _cmds=(
+    'init:initialize managed providers from current config'
+    'list:list managed providers'
+    'current:show active provider'
+    'use:switch to a managed provider'
+    'add:add a provider'
+    'edit:open a provider in $EDITOR'
+    'remove:remove a managed provider'
+    'rename:rename a provider'
+    'status:check whether cxf controls the active provider'
+    'claude:manage Claude Code provider pointer'
+    'completion:generate shell completion script'
+  )
+  _describe -t commands 'cxf command' _cmds
+}
+
+_cxf_claude_descriptions() {
+  local -a _cmds
+  _cmds=(
+    'init:initialize Claude providers from current settings'
+    'list:list managed Claude providers'
+    'current:show active Claude provider'
+    'add:add a Claude provider'
+    'edit:open a Claude provider in $EDITOR'
+    'use:switch Claude Code to a managed provider'
+    'remove:remove a Claude provider'
+    'rename:rename a Claude provider'
+    'status:check whether cxf controls Claude settings'
+  )
+  _describe -t claude-commands 'claude command' _cmds
+}
+
+_cxf() {
+  if (( CURRENT == 2 )); then
+    _cxf_cmd_descriptions
+    return
+  fi
+  case "$words[2]" in
+    init)
+      (( CURRENT > 3 )) && return
+      _message 'provider id'
+      ;;
+    use|edit|remove|rename)
+      (( CURRENT > 3 )) && return
+      _cxf_provider_ids
+      ;;
+    add)
+      (( CURRENT == 3 )) && _arguments \\
+        '--provider-id[provider id (interactive if omitted)]' \\
+        '--model-providers[model provider name]' \\
+        '--base-url[API base URL]' \\
+        '--api-key[API key]' \\
+        '--wire-api[API wire format]:wire:(responses chat)' \\
+        '--no-websocket[disable WebSocket]'
+      ;;
+    claude)
+      if (( CURRENT == 3 )); then
+        _cxf_claude_descriptions
+      elif (( CURRENT == 4 )) && [[ "$words[3]" == (use|edit|remove|rename) ]]; then
+        _cxf_claude_provider_ids
+      elif (( CURRENT == 4 )) && [[ "$words[3]" == init ]]; then
+        _message 'provider id'
+      elif (( CURRENT == 4 )) && [[ "$words[3]" == add ]]; then
+        _arguments \\
+          '--provider-id[provider id (interactive if omitted)]' \\
+          '--base-url[Anthropic-compatible base URL]' \\
+          '--api-key[Anthropic API key]' \\
+          '--model[model name]'
+      fi
+      ;;
+    list|current|status|completion)
+      return 1
+      ;;
+  esac
+}
+
+_cxf "$@"
+""")
+    elif shell == "bash":
+        print("""_cxf() {
+  local cur prev words cword
+  _init_completion || return
+  COMPREPLY=($(compgen -W "init list current use add edit remove rename status claude completion" -- "$cur"))
+}
+complete -F _cxf cxf
+""")
     return 0
 
 
@@ -632,6 +748,7 @@ _CODEX_COMMANDS: dict[str, Callable[..., int]] = {
     "remove": lambda args: _cmd_remove(args.provider, args.yes),
     "rename": lambda args: _cmd_rename(args.old, args.new),
     "status": lambda _: _cmd_status(),
+    "completion": lambda args: _cmd_completion(args.shell),
 }
 
 _CLAUDE_COMMANDS: dict[str, Callable[..., int]] = {
