@@ -5,7 +5,6 @@ import getpass
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Any, NoReturn
 
 from rich.console import Console

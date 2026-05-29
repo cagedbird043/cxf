@@ -11,23 +11,25 @@ from cxf.config import (
     _is_table_like,
     _read_json,
     _read_toml,
-    _write_json,
     _write_toml,
 )
 from cxf.models import ClaudeProvider
 
 
 def _default_deepseek_claude_provider(api_key: str = "") -> ClaudeProvider:
-    return ClaudeProvider("deepseek", {
-        "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
-        "ANTHROPIC_AUTH_TOKEN": api_key,
-        "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
-        "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
-        "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
-        "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
-        "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
-        "CLAUDE_CODE_EFFORT_LEVEL": "max",
-    })
+    return ClaudeProvider(
+        "deepseek",
+        {
+            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+            "ANTHROPIC_AUTH_TOKEN": api_key,
+            "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+            "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro[1m]",
+            "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+            "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+            "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+            "CLAUDE_CODE_EFFORT_LEVEL": "max",
+        },
+    )
 
 
 def _claude_provider_doc(provider: ClaudeProvider) -> Any:
@@ -84,10 +86,19 @@ def _extract_current_claude_provider(name: str) -> ClaudeProvider:
 
 
 CLAUDED_MANAGED_KEYS = {
-    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
-    "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL", "ANTHROPIC_DEFAULT_HAIKU_MODEL",
-    "ANTHROPIC_CUSTOM_MODEL_OPTION", "CLAUDE_CODE_SUBAGENT_MODEL", "CLAUDE_CODE_EFFORT_LEVEL",
-    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY", "CLAUDE_CODE_MAX_CONTEXT_TOKENS", "ENABLE_TOOL_SEARCH",
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+    "ANTHROPIC_CUSTOM_MODEL_OPTION",
+    "CLAUDE_CODE_SUBAGENT_MODEL",
+    "CLAUDE_CODE_EFFORT_LEVEL",
+    "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+    "ENABLE_TOOL_SEARCH",
     CLAUDE_PROVIDER_ENV,
 }
 

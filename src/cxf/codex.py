@@ -7,19 +7,15 @@ import tomlkit
 from tomlkit.items import Table
 
 from cxf.config import (
-    AUTH_PATH,
-    BASE_PATH,
     BASE_KEYS,
     CODEX_CONFIG_PATH,
     PROVIDERS_DIR,
     _is_table_like,
     _read_auth,
     _read_toml,
-    _write_auth,
     _write_toml,
 )
 from cxf.models import PROBE_PREFIX, Provider, provider_table_mapping
-
 
 # ── helpers ────────────────────────────────────────────────────────────
 

@@ -72,9 +72,7 @@ def _patch_paths(monkeypatch, tmp_path) -> dict:
     monkeypatch.setattr("cxf.config.CLAUDE_PROVIDERS_DIR", claude_provider_dir)
     monkeypatch.setattr("cxf.config.CLAUDE_SETTINGS_PATH", claude_settings_path)
 
-    # -- codex: AUTH_PATH, BASE_PATH, CODEX_CONFIG_PATH, PROVIDERS_DIR --
-    monkeypatch.setattr("cxf.codex.AUTH_PATH", auth_path)
-    monkeypatch.setattr("cxf.codex.BASE_PATH", base_path)
+    # -- codex: CODEX_CONFIG_PATH, PROVIDERS_DIR --
     monkeypatch.setattr("cxf.codex.CODEX_CONFIG_PATH", config_path)
     monkeypatch.setattr("cxf.codex.PROVIDERS_DIR", provider_dir)
 
@@ -151,12 +149,17 @@ def test_parser_accepts_claude_status() -> None:
 
 
 def test_parser_accepts_add_noninteractive() -> None:
-    args = build_parser().parse_args([
-        "add",
-        "--provider-id", "test",
-        "--base-url", "https://example.com",
-        "--api-key", "sk-test",
-    ])
+    args = build_parser().parse_args(
+        [
+            "add",
+            "--provider-id",
+            "test",
+            "--base-url",
+            "https://example.com",
+            "--api-key",
+            "sk-test",
+        ]
+    )
     assert args.command == "add"
     assert args.provider_id == "test"
     assert args.base_url == "https://example.com"
@@ -480,13 +483,15 @@ def test_redact_key_handles_invalid_json() -> None:
 
 
 def test_redact_claude_settings_hides_multiple_keys() -> None:
-    raw = json.dumps({
-        "env": {
-            "ANTHROPIC_AUTH_TOKEN": "secret-1",
-            "GITHUB_TOKEN": "secret-2",
-            "ANTHROPIC_MODEL": "claude-4",
+    raw = json.dumps(
+        {
+            "env": {
+                "ANTHROPIC_AUTH_TOKEN": "secret-1",
+                "GITHUB_TOKEN": "secret-2",
+                "ANTHROPIC_MODEL": "claude-4",
+            }
         }
-    })
+    )
     clean = _redact_claude_settings(raw)
     data = json.loads(clean)
     assert data["env"]["ANTHROPIC_AUTH_TOKEN"] == "***"
@@ -515,9 +520,7 @@ def test_diff_empty_for_identical() -> None:
 def test_cmd_init_creates_providers_from_config(monkeypatch, tmp_path) -> None:
     paths = _patch_paths(monkeypatch, tmp_path)
     paths["config_path"].write_text(
-        'model_provider = "OpenAI"\n'
-        '[model_providers.OpenAI]\n'
-        'base_url = "https://api.openai.com"\n'
+        'model_provider = "OpenAI"\n[model_providers.OpenAI]\nbase_url = "https://api.openai.com"\n'
     )
     assert _cmd_init(None) == 0
     assert (paths["provider_dir"] / "openai.toml").exists()
@@ -526,9 +529,7 @@ def test_cmd_init_creates_providers_from_config(monkeypatch, tmp_path) -> None:
 def test_cmd_init_with_name(monkeypatch, tmp_path) -> None:
     paths = _patch_paths(monkeypatch, tmp_path)
     paths["config_path"].write_text(
-        'model_provider = "OpenAI"\n'
-        '[model_providers.OpenAI]\n'
-        'base_url = "https://api.openai.com"\n'
+        'model_provider = "OpenAI"\n[model_providers.OpenAI]\nbase_url = "https://api.openai.com"\n'
     )
     assert _cmd_init("my-provider") == 0
     assert (paths["provider_dir"] / "my-provider.toml").exists()
@@ -537,9 +538,7 @@ def test_cmd_init_with_name(monkeypatch, tmp_path) -> None:
 def test_cmd_init_with_model_providers_section(monkeypatch, tmp_path) -> None:
     paths = _patch_paths(monkeypatch, tmp_path)
     paths["config_path"].write_text(
-        'model_provider = "OpenAI"\n'
-        '[model_providers.OpenAI]\n'
-        'base_url = "https://api.openai.com"\n'
+        'model_provider = "OpenAI"\n[model_providers.OpenAI]\nbase_url = "https://api.openai.com"\n'
     )
     assert _cmd_init(None) == 0
     assert (paths["provider_dir"] / "openai.toml").exists()
@@ -551,20 +550,19 @@ def test_cmd_init_with_model_providers_section(monkeypatch, tmp_path) -> None:
 def test_cmd_current_with_probe(monkeypatch, tmp_path, capsys) -> None:
     paths = _patch_paths(monkeypatch, tmp_path)
     paths["config_path"].write_text(
-        '# cxf: provider = timi\n'
-        'model_provider = "OpenAI"\n'
-        '[model_providers.OpenAI]\n'
-        'base_url = "https://timicc.com"\n'
+        '# cxf: provider = timi\nmodel_provider = "OpenAI"\n[model_providers.OpenAI]\nbase_url = "https://timicc.com"\n'
     )
-    _write_provider(Provider(
-        provider_id="timi",
-        model_providers="OpenAI",
-        base_url="https://timicc.com",
-        api_key="sk-test",
-        wire_api="responses",
-        requires_openai_auth=True,
-        websocket=True,
-    ))
+    _write_provider(
+        Provider(
+            provider_id="timi",
+            model_providers="OpenAI",
+            base_url="https://timicc.com",
+            api_key="sk-test",
+            wire_api="responses",
+            requires_openai_auth=True,
+            websocket=True,
+        )
+    )
     assert _cmd_current() == 0
     captured = capsys.readouterr()
     assert "timi" in captured.out
@@ -585,20 +583,19 @@ def test_cmd_current_no_probe(monkeypatch, tmp_path, capsys) -> None:
 def test_cmd_use_switches_provider(monkeypatch, tmp_path, capsys) -> None:
     paths = _patch_paths(monkeypatch, tmp_path)
     paths["config_path"].write_text('model_provider = "Other"\n')
-    paths["base_path"].write_text(
-        'model = "gpt-5.5"\n'
-        'review_model = "gpt-5.4"\n'
-    )
+    paths["base_path"].write_text('model = "gpt-5.5"\nreview_model = "gpt-5.4"\n')
     paths["auth_path"].write_text('{"OPENAI_API_KEY": "sk-test", "source": "cxf"}\n')
-    _write_provider(Provider(
-        provider_id="timi",
-        model_providers="OpenAI",
-        base_url="https://timicc.com",
-        api_key="sk-test",
-        wire_api="responses",
-        requires_openai_auth=True,
-        websocket=True,
-    ))
+    _write_provider(
+        Provider(
+            provider_id="timi",
+            model_providers="OpenAI",
+            base_url="https://timicc.com",
+            api_key="sk-test",
+            wire_api="responses",
+            requires_openai_auth=True,
+            websocket=True,
+        )
+    )
 
     assert _cmd_use("timi") == 0
     config = tomlkit.parse(paths["config_path"].read_text(encoding="utf-8"))
@@ -693,7 +690,7 @@ def test_cmd_add_interactive(monkeypatch, tmp_path) -> None:
 
 
 def test_cmd_claude_init_creates_default_providers(monkeypatch, tmp_path, capsys) -> None:
-    paths = _patch_paths(monkeypatch, tmp_path)
+    _patch_paths(monkeypatch, tmp_path)
     monkeypatch.setattr("cxf.cli._write_claude_provider", lambda p: None)
 
     assert _cmd_claude_init(None) == 0
@@ -702,7 +699,7 @@ def test_cmd_claude_init_creates_default_providers(monkeypatch, tmp_path, capsys
 
 
 def test_cmd_claude_init_with_name(monkeypatch, tmp_path, capsys) -> None:
-    paths = _patch_paths(monkeypatch, tmp_path)
+    _patch_paths(monkeypatch, tmp_path)
     monkeypatch.setattr("cxf.cli._write_claude_provider", lambda p: None)
 
     assert _cmd_claude_init("custom") == 0
@@ -715,15 +712,17 @@ def test_cmd_claude_init_with_name(monkeypatch, tmp_path, capsys) -> None:
 
 def test_cmd_claude_use_switches_provider(monkeypatch, tmp_path, capsys) -> None:
     paths = _patch_paths(monkeypatch, tmp_path)
-    _write_provider(Provider(
-        provider_id="deepseek",
-        model_providers="OpenAI",
-        base_url="https://api.deepseek.com/anthropic",
-        api_key="sk-test",
-        wire_api="responses",
-        requires_openai_auth=True,
-        websocket=True,
-    ))
+    _write_provider(
+        Provider(
+            provider_id="deepseek",
+            model_providers="OpenAI",
+            base_url="https://api.deepseek.com/anthropic",
+            api_key="sk-test",
+            wire_api="responses",
+            requires_openai_auth=True,
+            websocket=True,
+        )
+    )
 
     # Write a claude provider toml
     claude_path = paths["claude_provider_dir"] / "deepseek.toml"
@@ -764,11 +763,15 @@ def test_cmd_claude_status_controlled(monkeypatch, tmp_path, capsys) -> None:
     paths["claude_settings_path"].write_text(json.dumps(claude_settings), encoding="utf-8")
 
     # Write claude provider file
-    claude_prov = ClaudeProvider("deepseek", {
-        "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
-        "ANTHROPIC_AUTH_TOKEN": "sk-test",
-    })
+    claude_prov = ClaudeProvider(
+        "deepseek",
+        {
+            "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
+            "ANTHROPIC_AUTH_TOKEN": "sk-test",
+        },
+    )
     from cxf.claude import _write_claude_provider
+
     _write_claude_provider(claude_prov)
 
     assert _cmd_claude_status() == 0

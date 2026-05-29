@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from cxf.config import PROVIDERS_DIR, CLAUDE_PROVIDERS_DIR
+from cxf.config import CLAUDE_PROVIDERS_DIR, PROVIDERS_DIR
 
 PROBE_PREFIX = "# cxf: provider = "
 

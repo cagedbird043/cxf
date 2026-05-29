@@ -3,11 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
-from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 import tomlkit
 
@@ -406,12 +404,15 @@ def _cmd_claude_list() -> int:
     rows: list[tuple[str, str, str]] = []
     for pid in _claude_provider_ids():
         prov = _load_claude_provider(pid)
-        rows.append((
-            prov.provider_id,
-            prov.env.get("ANTHROPIC_BASE_URL", "-"),
-            prov.env.get("ANTHROPIC_MODEL", "-"),
-        ))
+        rows.append(
+            (
+                prov.provider_id,
+                prov.env.get("ANTHROPIC_BASE_URL", "-"),
+                prov.env.get("ANTHROPIC_MODEL", "-"),
+            )
+        )
     from cxf.ux import print_claude_provider_table
+
     print_claude_provider_table(rows)
     return 0
 
@@ -464,10 +465,22 @@ def _cmd_claude_use(provider_id: str | None) -> int:
     after_doc = _apply_claude_provider(settings, provider)
     after = json.dumps(after_doc, ensure_ascii=False, indent=2) + "\n"
     _write_json(CLAUDE_SETTINGS_PATH, after_doc)
-    d = diff(redact_claude_settings(before), redact_claude_settings(after), str(CLAUDE_SETTINGS_PATH), str(CLAUDE_SETTINGS_PATH))
+    d = diff(
+        redact_claude_settings(before),
+        redact_claude_settings(after),
+        str(CLAUDE_SETTINGS_PATH),
+        str(CLAUDE_SETTINGS_PATH),
+    )
     if d:
         print(d, end="")
-    print(_("msg.claude_current", provider.provider_id, provider.env.get("ANTHROPIC_BASE_URL", "-"), provider.env.get("ANTHROPIC_MODEL", "-")))
+    print(
+        _(
+            "msg.claude_current",
+            provider.provider_id,
+            provider.env.get("ANTHROPIC_BASE_URL", "-"),
+            provider.env.get("ANTHROPIC_MODEL", "-"),
+        )
+    )
     return 0
 
 
