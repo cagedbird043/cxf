@@ -138,51 +138,24 @@ _I18N: dict[str, tuple[str, str]] = {
     # -- bool labels (config values, always in English) --
     "bool.on": ("on", "on"),
     "bool.off": ("off", "off"),
-    # -- status output --
-    "status.controlled_yes": (
-        "controlled: yes",
-        "管控中: 是",
-    ),
-    "status.controlled_no": (
-        "controlled: no",
-        "管控中: 否",
-    ),
-    "status.controlled_partial": (
-        "controlled: partial",
-        "管控中: 部分",
-    ),
-    "status.reason.missing_probe": (
-        "cxf provider comment is missing",
-        "cxf provider 标记缺失",
-    ),
-    "status.reason.missing_file": (
-        "provider file is missing: {}",
-        "provider 文件不存在: {}",
-    ),
+    # -- status output (always English) --
+    "status.controlled_yes": ("controlled: yes", "controlled: yes"),
+    "status.controlled_no": ("controlled: no", "controlled: no"),
+    "status.controlled_partial": ("controlled: partial", "controlled: partial"),
+    "status.reason.missing_probe": ("cxf provider comment is missing", "cxf provider comment is missing"),
+    "status.reason.missing_file": ("provider file is missing: {}", "provider file is missing: {}"),
     "status.reason.missing_claude_env": (
         "env.CXF_CLAUDE_PROVIDER is missing",
-        "缺少 env.CXF_CLAUDE_PROVIDER",
+        "env.CXF_CLAUDE_PROVIDER is missing",
     ),
     "status.reason.missing_claude_file": (
         "claude provider file is missing: {}",
-        "Claude provider 文件不存在: {}",
+        "claude provider file is missing: {}",
     ),
-    "status.drift": (
-        "drift: {}",
-        "偏离: {}",
-    ),
-    "status.drift_auth": (
-        "drift: auth OPENAI_API_KEY",
-        "偏离: API 密钥",
-    ),
-    "status.fix_use": (
-        "fix: cxf use {}",
-        "修复: cxf use {}",
-    ),
-    "status.fix_claude_use": (
-        "fix: cxf claude use {}",
-        "修复: cxf claude use {}",
-    ),
+    "status.drift": ("drift: {}", "drift: {}"),
+    "status.drift_auth": ("drift: auth OPENAI_API_KEY", "drift: auth OPENAI_API_KEY"),
+    "status.fix_use": ("fix: cxf use {}", "fix: cxf use {}"),
+    "status.fix_claude_use": ("fix: cxf claude use {}", "fix: cxf claude use {}"),
     # -- prompts --
     "p.provider_id": (
         "provider id",
@@ -220,47 +193,20 @@ _I18N: dict[str, tuple[str, str]] = {
         "remove claude provider '{}'?",
         "确定删除 Claude provider '{}'？",
     ),
-    "p.aborted": (
-        "aborted",
-        "已取消",
-    ),
+    "p.aborted": ("aborted", "aborted"),
     "p.provider_id_required": (
         "provider id is required",
         "必须指定 provider 名称",
     ),
-    # -- messages --
-    "msg.initialized": (
-        "initialized: {}",
-        "已初始化: {}",
-    ),
-    "msg.provider_line": (
-        "provider: {} -> {} {}",
-        "provider: {} -> {} {}",
-    ),
-    "msg.current": (
-        "current: {} -> {} {}",
-        "当前: {} -> {} {}",
-    ),
-    "msg.claude_current": (
-        "claude current: {} -> {} {}",
-        "Claude 当前: {} -> {} {}",
-    ),
-    "msg.claude_initialized": (
-        "initialized: {}",
-        "已初始化: {}",
-    ),
-    "msg.claude_provider_line": (
-        "claude provider: {} -> {} {}",
-        "Claude provider: {} -> {} {}",
-    ),
-    "msg.removed": (
-        "removed: {}",
-        "已删除: {}",
-    ),
-    "msg.created": (
-        "created: {}",
-        "已创建: {}",
-    ),
+    # -- messages (always English) --
+    "msg.initialized": ("initialized: {}", "initialized: {}"),
+    "msg.provider_line": ("provider: {} -> {} {}", "provider: {} -> {} {}"),
+    "msg.current": ("current: {} -> {} {}", "current: {} -> {} {}"),
+    "msg.claude_current": ("claude current: {} -> {} {}", "claude current: {} -> {} {}"),
+    "msg.claude_initialized": ("initialized: {}", "initialized: {}"),
+    "msg.claude_provider_line": ("claude provider: {} -> {} {}", "claude provider: {} -> {} {}"),
+    "msg.removed": ("removed: {}", "removed: {}"),
+    "msg.created": ("created: {}", "created: {}"),
     # -- errors --
     "err.not_found": (
         "provider not found: {}",
