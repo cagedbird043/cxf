@@ -1,3 +1,8 @@
+[![CI](https://github.com/cagedbird043/cxf/actions/workflows/ci.yml/badge.svg)](https://github.com/cagedbird043/cxf/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/cagedbird043/cxf/graph/badge.svg)](https://codecov.io/gh/cagedbird043/cxf)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
 # cxf — Codex Provider Pointer Manager
 
 `cxf` 是一个极简的 [Codex](https://github.com/openai/codex) / [Claude Code](https://github.com/anthropics/claude-code) provider 切换工具。它只动 provider 相关字段，不动你其他配置，让你在多个 API 端点之间丝滑切换。
