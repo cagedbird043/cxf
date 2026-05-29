@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # use
     use_p = sub.add_parser("use", help=_("help.use"))
-    use_p.add_argument("provider", help=_("arg.provider"))
+    use_p.add_argument("provider", nargs="?", help=_("arg.provider"))
 
     # add (supports both interactive and non-interactive)
     add_p = sub.add_parser("add", help=_("help.add"))
@@ -86,12 +86,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     # edit
     edit_p = sub.add_parser("edit", help=_("help.edit"))
-    edit_p.add_argument("provider", help=_("arg.provider"))
+    edit_p.add_argument("provider", nargs="?", help=_("arg.provider"))
     edit_p.add_argument("-y", "--yes", action="store_true", help=_("arg.yes"))
 
     # remove
     remove_p = sub.add_parser("remove", help=_("help.remove"))
-    remove_p.add_argument("provider", help=_("arg.provider"))
+    remove_p.add_argument("provider", nargs="?", help=_("arg.provider"))
     remove_p.add_argument("-y", "--yes", action="store_true", help=_("arg.yes"))
 
     # status (was doctor)
@@ -108,18 +108,43 @@ def build_parser() -> argparse.ArgumentParser:
     claude_sub.add_parser("current", help=_("help.claude_current"))
 
     claude_use = claude_sub.add_parser("use", help=_("help.claude_use"))
-    claude_use.add_argument("provider", help=_("arg.provider"))
+    claude_use.add_argument("provider", nargs="?", help=_("arg.provider"))
 
     claude_edit = claude_sub.add_parser("edit", help=_("help.claude_edit"))
-    claude_edit.add_argument("provider", help=_("arg.provider"))
+    claude_edit.add_argument("provider", nargs="?", help=_("arg.provider"))
 
     claude_remove = claude_sub.add_parser("remove", help=_("help.claude_remove"))
-    claude_remove.add_argument("provider", help=_("arg.provider"))
+    claude_remove.add_argument("provider", nargs="?", help=_("arg.provider"))
     claude_remove.add_argument("-y", "--yes", action="store_true", help=_("arg.yes"))
 
     claude_sub.add_parser("status", help=_("help.claude_status"))
 
     return parser
+
+
+# ── helpers ────────────────────────────────────────────────────────────
+
+
+def _subcommand_help(name: str) -> None:
+    """Print help for a subcommand by looking it up in argparse internals."""
+    parser = build_parser()
+    for action in parser._actions:
+        if hasattr(action, "choices") and action.choices and name in action.choices:
+            action.choices[name].print_help()
+            break
+
+
+def _claude_subcommand_help(name: str) -> None:
+    """Print help for a claude sub-subcommand."""
+    parser = build_parser()
+    for action in parser._actions:
+        if hasattr(action, "choices") and action.choices and "claude" in action.choices:
+            claude_p = action.choices["claude"]
+            for ca in claude_p._actions:
+                if hasattr(ca, "choices") and ca.choices and name in ca.choices:
+                    ca.choices[name].print_help()
+                    return
+            break
 
 
 # ── command handlers ───────────────────────────────────────────────────
@@ -171,7 +196,10 @@ def _cmd_current() -> int:
     return 0
 
 
-def _cmd_use(provider_id: str) -> int:
+def _cmd_use(provider_id: str | None) -> int:
+    if provider_id is None:
+        _subcommand_help("use")
+        return 0
     _ensure_layout()
     provider = _load_provider(provider_id)
     base = _load_base()
@@ -229,7 +257,10 @@ def _cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_edit(provider_id: str, yes: bool = False) -> int:
+def _cmd_edit(provider_id: str | None, yes: bool = False) -> int:
+    if provider_id is None:
+        _subcommand_help("edit")
+        return 0
     _ensure_layout()
     target = PROVIDERS_DIR / f"{provider_id}.toml"
     if not target.exists():
@@ -257,7 +288,10 @@ def _cmd_edit(provider_id: str, yes: bool = False) -> int:
     return _cmd_use(provider_id)
 
 
-def _cmd_remove(provider_id: str, yes: bool = False) -> int:
+def _cmd_remove(provider_id: str | None, yes: bool = False) -> int:
+    if provider_id is None:
+        _subcommand_help("remove")
+        return 0
     _ensure_layout()
     path = PROVIDERS_DIR / f"{provider_id}.toml"
     if not path.exists():
@@ -354,7 +388,10 @@ def _cmd_claude_current() -> int:
     return 0
 
 
-def _cmd_claude_edit(provider_id: str) -> int:
+def _cmd_claude_edit(provider_id: str | None) -> int:
+    if provider_id is None:
+        _claude_subcommand_help("edit")
+        return 0
     _ensure_claude_layout()
     target = CLAUDE_PROVIDERS_DIR / f"{provider_id}.toml"
     if not target.exists():
@@ -368,7 +405,10 @@ def _cmd_claude_edit(provider_id: str) -> int:
     return _cmd_claude_use(provider_id)
 
 
-def _cmd_claude_use(provider_id: str) -> int:
+def _cmd_claude_use(provider_id: str | None) -> int:
+    if provider_id is None:
+        _claude_subcommand_help("use")
+        return 0
     _ensure_claude_layout()
     provider = _load_claude_provider(provider_id)
     before = CLAUDE_SETTINGS_PATH.read_text(encoding="utf-8") if CLAUDE_SETTINGS_PATH.exists() else ""
@@ -383,7 +423,10 @@ def _cmd_claude_use(provider_id: str) -> int:
     return 0
 
 
-def _cmd_claude_remove(provider_id: str, yes: bool = False) -> int:
+def _cmd_claude_remove(provider_id: str | None, yes: bool = False) -> int:
+    if provider_id is None:
+        _claude_subcommand_help("remove")
+        return 0
     _ensure_claude_layout()
     path = CLAUDE_PROVIDERS_DIR / f"{provider_id}.toml"
     if not path.exists():
