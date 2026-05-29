@@ -86,7 +86,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # edit
     edit_p = sub.add_parser("edit", help=_("help.edit"))
-    edit_p.add_argument("provider", nargs="?", help=_("arg.provider"))
+    edit_p.add_argument("provider", help=_("arg.provider"))
     edit_p.add_argument("-y", "--yes", action="store_true", help=_("arg.yes"))
 
     # remove
@@ -111,7 +111,7 @@ def build_parser() -> argparse.ArgumentParser:
     claude_use.add_argument("provider", help=_("arg.provider"))
 
     claude_edit = claude_sub.add_parser("edit", help=_("help.claude_edit"))
-    claude_edit.add_argument("provider", nargs="?", help=_("arg.provider"))
+    claude_edit.add_argument("provider", help=_("arg.provider"))
 
     claude_remove = claude_sub.add_parser("remove", help=_("help.claude_remove"))
     claude_remove.add_argument("provider", help=_("arg.provider"))
@@ -229,33 +229,30 @@ def _cmd_add(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_edit(provider_id: str | None, yes: bool = False) -> int:
+def _cmd_edit(provider_id: str, yes: bool = False) -> int:
     _ensure_layout()
-    if provider_id:
-        target = PROVIDERS_DIR / f"{provider_id}.toml"
-        if not target.exists():
-            if not _confirm("p.create_provider", provider_id, yes=yes):
-                print(_("p.aborted"))
-                return 1
-            _write_provider(
-                Provider(
-                    provider_id=provider_id,
-                    model_providers=_prompt("p.model_providers", "OpenAI"),
-                    base_url=_prompt("p.base_url"),
-                    api_key=_prompt("p.api_key", secret=True),
-                    wire_api=_prompt("p.wire_api", "responses"),
-                    requires_openai_auth=True,
-                    websocket=_prompt_bool("p.websocket", True),
-                )
+    target = PROVIDERS_DIR / f"{provider_id}.toml"
+    if not target.exists():
+        if not _confirm("p.create_provider", provider_id, yes=yes):
+            print(_("p.aborted"))
+            return 1
+        _write_provider(
+            Provider(
+                provider_id=provider_id,
+                model_providers=_prompt("p.model_providers", "OpenAI"),
+                base_url=_prompt("p.base_url"),
+                api_key=_prompt("p.api_key", secret=True),
+                wire_api=_prompt("p.wire_api", "responses"),
+                requires_openai_auth=True,
+                websocket=_prompt_bool("p.websocket", True),
             )
-    else:
-        target = CXF_HOME
+        )
 
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
     if not editor:
         _error("err.editor_not_set")
     result = subprocess.call([editor, str(target)])
-    if result != 0 or not provider_id:
+    if result != 0:
         return result
     return _cmd_use(provider_id)
 
@@ -357,19 +354,16 @@ def _cmd_claude_current() -> int:
     return 0
 
 
-def _cmd_claude_edit(provider_id: str | None) -> int:
+def _cmd_claude_edit(provider_id: str) -> int:
     _ensure_claude_layout()
-    if provider_id:
-        target = CLAUDE_PROVIDERS_DIR / f"{provider_id}.toml"
-        if not target.exists():
-            _write_claude_provider(_extract_current_claude_provider(provider_id))
-    else:
-        target = CLAUDE_PROVIDERS_DIR.parent
+    target = CLAUDE_PROVIDERS_DIR / f"{provider_id}.toml"
+    if not target.exists():
+        _write_claude_provider(_extract_current_claude_provider(provider_id))
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
     if not editor:
         _error("err.editor_not_set")
     result = subprocess.call([editor, str(target)])
-    if result != 0 or not provider_id:
+    if result != 0:
         return result
     return _cmd_claude_use(provider_id)
 
