@@ -1,175 +1,129 @@
-[![CI](https://github.com/cagedbird043/cxf/actions/workflows/ci.yml/badge.svg)](https://github.com/cagedbird043/cxf/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/cagedbird043/cxf/graph/badge.svg)](https://codecov.io/gh/cagedbird043/cxf)
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+# cxf — Codex / Claude provider manager
 
-# cxf — Codex Provider Pointer Manager
+`cxf` manages LLM provider configurations for Codex and Claude Code.
+It reads and writes TOML provider files and injects them into
+`~/.codex/config.toml` and `~/.claude/settings.json`.
 
-`cxf` 是一个极简的 [Codex](https://github.com/openai/codex) / [Claude Code](https://github.com/anthropics/claude-code) provider 切换工具。它只动 provider 相关字段，不动你其他配置，让你在多个 API 端点之间丝滑切换。
+Zero network calls — purely local file operations.
 
 ## Install
 
-### pip
+### Go
 
 ```bash
-pip install git+https://github.com/cagedbird043/cxf.git
+go install github.com/cagedbird043/cxf@latest
 ```
 
-### install.sh（推荐，含 zsh completion）
+### curl
+
+```bash
+curl -sfL https://cagedbird.cn/cxf/install.sh | sh
+```
+
+### Build from source
 
 ```bash
 git clone https://github.com/cagedbird043/cxf.git
 cd cxf
-./install.sh
+make install
 ```
 
-安装后执行 `cxf init` 从当前 Codex 配置提取已有 provider，然后就可以开始用了。
-
-## Quick Start
+## Quick start
 
 ```bash
-# 查看所有命令
-cxf
-
-# 初始化：从当前 Codex 配置提取 providers
-cxf init
-
-# 列出已注册的 providers
+# List all Codex providers
 cxf list
 
-# 切换到某个 provider
-cxf use <provider-name>
+# Switch to a provider
+cxf use my-provider
 
-# 查看当前状态
+# Show current provider
 cxf current
 
-# 添加新 provider（交互式）
+# Add a new provider
 cxf add
 
-# 添加新 provider（非交互，适合脚本）
-cxf add --provider-id openrouter \
-  --base-url https://openrouter.ai/api/v1 \
-  --api-key sk-or-v1-xxxx \
-  --wire-api chat
-
-# 查看配置是否与 provider 定义一致
+# Check for configuration drift
 cxf status
-```
 
-## Claude Code 支持
-
-`cxf claude` 子命令管理 Claude Code provider 的环境变量，零侵入——只改 `~/.claude/settings.json` 的 `env` 块。
-
-```bash
-# 初始化：提取当前 Claude 配置 + deepseek 候选
-cxf claude init
-
-# 列出所有 Claude providers
+# Claude providers
 cxf claude list
-
-# 切换到 DeepSeek 的 Anthropic 兼容端点
-cxf claude use deepseek
-
-# 切回官方 Anthropic
-cxf claude use anthropic
-
-# 查看当前 Claude 配置状态
-cxf claude status
+cxf claude use my-claude-provider
 ```
-
-默认的 DeepSeek 候选配置：
-
-| 变量 | 值 |
-|------|-----|
-| `ANTHROPIC_BASE_URL` | `https://api.deepseek.com/anthropic` |
-| `ANTHROPIC_MODEL` | `deepseek-v4-pro[1m]` |
-| `ANTHROPIC_DEFAULT_OPUS_MODEL` | `deepseek-v4-pro[1m]` |
-| `ANTHROPIC_DEFAULT_SONNET_MODEL` | `deepseek-v4-pro[1m]` |
-| `ANTHROPIC_DEFAULT_HAIKU_MODEL` | `deepseek-v4-flash` |
-| `CLAUDE_CODE_SUBAGENT_MODEL` | `deepseek-v4-flash` |
-| `CLAUDE_CODE_EFFORT_LEVEL` | `max` |
 
 ## Commands
 
-### Codex 命令
+### Codex
 
-| 命令 | 说明 |
-|------|------|
-| `cxf init [name]` | 从当前 Codex 配置提取 providers |
-| `cxf list` | 列出所有已注册 provider |
-| `cxf current` | 查看当前生效的 provider |
-| `cxf use <provider>` | 切换到指定 provider |
-| `cxf add` | 交互式添加新 provider |
-| `cxf add --provider-id ...` | 非交互式添加（参见上方示例） |
-| `cxf edit <provider>` | 用 `$EDITOR` 编辑 provider |
-| `cxf remove <provider>` | 删除 provider |
-| `cxf status` | 检查当前状态是否与 provider 定义一致 |
+| Command | Description |
+|---------|-------------|
+| `cxf list` | List all Codex providers |
+| `cxf current` | Show active Codex provider |
+| `cxf use <name>` | Switch to a provider |
+| `cxf add` | Add a provider (interactive or flags) |
+| `cxf edit <name>` | Edit a provider in $EDITOR |
+| `cxf remove <name>` | Remove a provider |
+| `cxf rename <old> <new>` | Rename a provider |
+| `cxf status` | Check cxf controls the active provider |
+| `cxf init [name]` | Import providers from Codex config |
 
-### Claude 命令
+### Claude
 
-| 命令 | 说明 |
-|------|------|
-| `cxf claude init [name]` | 提取当前 Claude 配置 |
-| `cxf claude list` | 列出所有 Claude providers |
-| `cxf claude current` | 查看当前 Claude 配置 |
-| `cxf claude use <provider>` | 切换 Claude provider |
-| `cxf claude edit <provider>` | 编辑 Claude provider |
-| `cxf claude remove <provider>` | 删除 Claude provider |
-| `cxf claude status` | 检查 Claude 配置一致性 |
+| Command | Description |
+|---------|-------------|
+| `cxf claude list` | List all Claude providers |
+| `cxf claude current` | Show active Claude provider |
+| `cxf claude use <name>` | Switch to a Claude provider |
+| `cxf claude add` | Add a Claude provider (interactive or flags) |
+| `cxf claude edit <name>` | Edit a Claude provider in $EDITOR |
+| `cxf claude remove <name>` | Remove a Claude provider |
+| `cxf claude rename <old> <new>` | Rename a Claude provider |
+| `cxf claude status` | Check cxf controls the active provider |
+| `cxf claude init [name]` | Import Claude provider from settings |
 
-## 文件布局
-
-```
-~/.config/cxf/                     # XDG_CONFIG_HOME → cxf 自身配置
-├── base.toml                      # 默认 model/review_model 设置
-├── providers/                     # 每个 provider 一个 .toml 文件
-│   ├── openai.toml
-│   └── ...
-└── claude/
-    └── providers/                 # Claude provider 定义
-        ├── deepseek.toml
-        └── ...
-
-~/.local/state/cxf/                # XDG_STATE_HOME → cxf 运行状态
-└── snapshots/                     # 切换前自动备份
-    └── ...
-```
-
-cxf 只操作以下 Codex 配置字段：
-- 配置文件中注入 `# cxf: provider = <name>` 标记
-- `model_provider`, `model`, `review_model`, `model_reasoning_effort`
-- `model_context_window`, `model_auto_compact_token_limit`
-- `[model_providers.<name>]` 块
-- `[features].responses_websockets_v2`
-- `auth.json` 中的 `OPENAI_API_KEY`
-
-其他所有 Codex 配置保持不动。
-
-## 重要说明
-
-- **`model_providers` 必须始终为 `"OpenAI"`**。Codex 以 `model_provider` 字段作为 session key 关联历史记录，一旦改名字所有会话历史丢失。不同后端只能通过调整 `base_url` 和 API key 来切换，不要改动 `model_providers` 名称。
-- 切换后端后 Codex 历史记录不会丢失（因为 `model_provider` 没变），但之前的对话上下文仍会保留。
-
-## 架构
-
-cxf 分为 6 个模块：
+## Architecture
 
 ```
-cli.py      — 参数解析 + 命令分发（唯一入口）
-models.py   — Provider 数据类
-config.py   — 所有文件路径、读写、布局初始化
-codex.py    — Codex 专有配置操作（diff/apply/extract）
-claude.py   — Claude Code 专有配置操作
-ux.py       — i18n 翻译、Rich 输出面板、diff 显示
+6 Go files, zero runtime deps (cobra + go-toml v1 + go-diff):
+
+main.go     — CLI entry, cobra command tree, interactive prompts
+models.go   — Provider / ClaudeProvider structs
+config.go   — XDG paths, TOML/JSON file I/O, auth management
+codex.go    — Codex config read/write, drift detection, provider injection
+claude.go   — Claude settings read/write, drift detection, provider injection
+ux.go       — ANSI colors, output helpers, diff rendering
 ```
 
-## 开发者
+### State model
 
-- **AI Agent 说明**：参见 [`AGENTS.md`](AGENTS.md)
-- 测试：`pytest tests/`（需要 `pytest`）
-- 依赖：`tomlkit>=0.13`, `rich>=13.0`
-- Python >= 3.11
+- **`~/.config/cxf/providers/*.toml`** — managed Codex provider definitions
+- **`~/.config/cxf/claude/providers/*.toml`** — managed Claude provider definitions
+- **`~/.codex/config.toml`** — Codex config (cxf injects a `# cxf: provider = <name>` probe)
+- **`~/.codex/auth.json`** — API key storage (merge-preserving, `chmod(0o600)`)
+- **`~/.claude/settings.json`** — Claude settings (cxf controls the `env` block)
+- **`~/.local/state/cxf/snapshots/`** — automatic pre-switch backups
 
-## License
+### TOML handling
 
-MIT
+- Provider files: struct-based marshal/unmarshal (simple key=value)
+- Codex config: go-toml v1 Tree API (preserves `#:schema` and comments)
+- Probe injection: line-level surgery after serialization
+
+## Security
+
+- All files containing API keys are written with `chmod(0o600)`.
+- `auth.json` preserves pre-existing fields (e.g. `OPENAI_ORG_ID`).
+- API keys are displayed in plaintext in terminal (user preference for proxy keys).
+
+## Configuration drift
+
+`cxf status` detects when the active config has been manually edited.
+`cxf use` warns before overwriting drifted config.
+
+## Shell completion
+
+```bash
+cxf completion zsh > ~/.local/share/zsh/site-functions/_cxf
+# add to .zshrc:
+#   fpath=(~/.local/share/zsh/site-functions $fpath)
+```
