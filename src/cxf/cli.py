@@ -278,7 +278,7 @@ def _cmd_add(args: argparse.Namespace) -> int:
             _error("p.provider_id_required")
         model_providers = _prompt("p.model_providers", "OpenAI")
         base_url = _prompt("p.base_url")
-        api_key = _prompt("p.api_key", secret=True)
+        api_key = _prompt("p.api_key")
         wire_api = _prompt("p.wire_api", "responses")
         websocket = _prompt_bool("p.websocket", True)
 
@@ -463,7 +463,7 @@ def _cmd_claude_add(args: argparse.Namespace) -> int:
         if not provider_id:
             _error("p.provider_id_required")
         base_url = _prompt("p.claude_base_url")
-        api_key = _prompt("p.claude_api_key", secret=True)
+        api_key = _prompt("p.claude_api_key")
         model = _prompt("p.claude_model", "deepseek-v4-flash")
 
     env = {
