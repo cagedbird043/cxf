@@ -1,10 +1,5 @@
 #compdef cxf
 
-# ── locale ─────────────────────────────────────────────────────────────
-
-local -i _zh=0
-[[ $LANG = zh_* ]] && _zh=1
-
 # ── provider completions ───────────────────────────────────────────────
 
 _cxf_provider_ids() {
@@ -29,6 +24,8 @@ _cxf() {
   local context state line
   typeset -A opt_args
   local -a commands
+  local -i _zh=0
+  [[ $LANG = zh_* ]] && _zh=1
 
   if (( _zh )); then
     commands=(
