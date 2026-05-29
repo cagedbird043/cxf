@@ -1,5 +1,12 @@
 #compdef cxf
 
+# ── locale ─────────────────────────────────────────────────────────────
+
+local -i _zh=0
+[[ $LANG = zh_* ]] && _zh=1
+
+# ── provider completions ───────────────────────────────────────────────
+
 _cxf_provider_ids() {
   local provider_dir="${HOME}/.codex/cxf/providers"
   [[ -d "$provider_dir" ]] || return
@@ -16,22 +23,38 @@ _cxf_claude_provider_ids() {
   _describe -t providers 'claude provider' providers
 }
 
+# ── main completer ─────────────────────────────────────────────────────
+
 _cxf() {
   local context state line
   typeset -A opt_args
   local -a commands
 
-  commands=(
-    'init:initialize managed providers from current config'
-    'list:list managed providers'
-    'current:show active provider'
-    'use:switch to a managed provider'
-    'add:add a provider'
-    'edit:open a provider in $EDITOR'
-    'remove:remove a managed provider'
-    'status:check whether cxf controls the active provider'
-    'claude:manage Claude Code provider pointer'
-  )
+  if (( _zh )); then
+    commands=(
+      'init:从当前配置初始化托管 provider'
+      'list:列出所有托管 provider'
+      'current:显示当前激活的 provider'
+      'use:切换到指定 provider'
+      'add:添加 provider'
+      'edit:编辑 provider'
+      'remove:删除 provider'
+      'status:检查 cxf 是否管控当前 provider'
+      'claude:管理 Claude Code provider 指针'
+    )
+  else
+    commands=(
+      'init:initialize managed providers from current config'
+      'list:list managed providers'
+      'current:show active provider'
+      'use:switch to a managed provider'
+      'add:add a provider'
+      'edit:open a provider in $EDITOR'
+      'remove:remove a managed provider'
+      'status:check whether cxf controls the active provider'
+      'claude:manage Claude Code provider pointer'
+    )
+  fi
 
   _arguments -C \
     '1:command:->command' \
@@ -54,40 +77,53 @@ _cxf() {
           ;;
         add)
           if (( CURRENT > 3 )); then
-            # suggest flags
-            _arguments \
-              '--provider-id[provider id]' \
-              '--model-providers[model provider name]' \
-              '--base-url[API base URL]' \
-              '--api-key[API key]' \
-              '--wire-api[API wire format]:wire:(responses chat)' \
-              '--no-websocket[disable WebSocket]'
+            if (( _zh )); then
+              _arguments \
+                '--provider-id[Provider 名称，省略则交互式输入]' \
+                '--model-providers[模型提供商名称]' \
+                '--base-url[API 地址]' \
+                '--api-key[API 密钥]' \
+                '--wire-api[API 格式]:wire:(responses chat)' \
+                '--no-websocket[禁用 WebSocket]'
+            else
+              _arguments \
+                '--provider-id[provider id (interactive if omitted)]' \
+                '--model-providers[model provider name]' \
+                '--base-url[API base URL]' \
+                '--api-key[API key]' \
+                '--wire-api[API wire format]:wire:(responses chat)' \
+                '--no-websocket[disable WebSocket]'
+            fi
           fi
           ;;
         claude)
           local -a claude_commands
-          claude_commands=(
-            'init:initialize Claude providers from current settings'
-            'list:list managed Claude providers'
-            'current:show active Claude provider'
-            'edit:open a Claude provider in $EDITOR'
-            'use:switch Claude Code to a managed provider'
-            'remove:remove a managed Claude provider'
-            'status:check whether cxf controls Claude settings'
-          )
+          if (( _zh )); then
+            claude_commands=(
+              'init:从当前设置初始化 Claude provider'
+              'list:列出所有托管 Claude provider'
+              'current:显示当前激活的 Claude provider'
+              'edit:编辑 Claude provider'
+              'use:切换 Claude Code 到指定 provider'
+              'remove:删除 Claude provider'
+              'status:检查 cxf 是否管控 Claude 设置'
+            )
+          else
+            claude_commands=(
+              'init:initialize Claude providers from current settings'
+              'list:list managed Claude providers'
+              'current:show active Claude provider'
+              'edit:open a Claude provider in $EDITOR'
+              'use:switch Claude Code to a managed provider'
+              'remove:remove a managed Claude provider'
+              'status:check whether cxf controls Claude settings'
+            )
+          fi
           if (( CURRENT == 3 )); then
             _describe -t claude-commands 'claude command' claude_commands
           elif [[ "$words[3]" == (use|edit|remove) ]]; then
             [[ -n "$words[4]" && -f "${HOME}/.codex/cxf/claude/providers/${words[4]}.toml" ]] && return 1
             _cxf_claude_provider_ids
-          elif [[ "$words[3]" == add ]]; then
-            _arguments \
-              '--provider-id[provider id]' \
-              '--model-providers[model provider name]' \
-              '--base-url[API base URL]' \
-              '--api-key[API key]' \
-              '--wire-api[API wire format]:wire:(responses chat)' \
-              '--no-websocket[disable WebSocket]'
           elif [[ "$words[3]" == init ]]; then
             _message 'provider id'
           else
