@@ -1,8 +1,37 @@
+import json
+
 import tomlkit
 
 import pytest
 
-from cxf.cli import Provider, _apply_claude_provider, _default_deepseek_claude_provider, _prompt, _apply_provider, _read_provider_probe, _set_provider_probe, build_parser, cmd_edit, main
+from cxf.claude import (
+    _apply_claude_provider,
+    _default_deepseek_claude_provider,
+)
+from cxf.cli import (
+    _cmd_edit,
+    _cmd_use,
+    _cmd_current,
+    _cmd_doctor,
+    _cmd_claude_use,
+    _cmd_claude_current,
+    _cmd_claude_doctor,
+    build_parser,
+    main,
+)
+from cxf.codex import (
+    _apply_provider,
+    _read_provider_probe,
+    _set_provider_probe,
+)
+from cxf.config import (
+    _prompt,
+    _diff,
+    _format_bool,
+    _redact_key,
+    _redact_claude_settings,
+)
+from cxf.models import Provider
 
 
 def test_parser_accepts_run_provider() -> None:
@@ -38,7 +67,8 @@ def test_apply_provider_keeps_unrelated_config(monkeypatch, tmp_path) -> None:
     provider_b = tmp_path / "b.toml"
     provider_a.write_text('model_providers = "OpenAI"\n')
     provider_b.write_text('model_providers = "Other"\n')
-    monkeypatch.setattr("cxf.cli.PROVIDERS_DIR", tmp_path)
+    monkeypatch.setattr("cxf.config.PROVIDERS_DIR", tmp_path)
+    monkeypatch.setattr("cxf.codex.PROVIDERS_DIR", tmp_path)
 
     config = tomlkit.parse(
         """
@@ -106,15 +136,16 @@ websocket = true
 """
     )
 
-    monkeypatch.setattr("cxf.cli.PROVIDERS_DIR", provider_dir)
-    monkeypatch.setattr("cxf.cli.CXF_HOME", tmp_path)
+    monkeypatch.setattr("cxf.config.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.codex.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.config.CXF_HOME", tmp_path)
     monkeypatch.setenv("EDITOR", "true")
     monkeypatch.setattr("subprocess.call", lambda _: 0)
 
     called: list[str] = []
-    monkeypatch.setattr("cxf.cli.cmd_use", lambda provider_id: called.append(provider_id) or 0)
+    monkeypatch.setattr("cxf.cli._cmd_use", lambda provider_id: called.append(provider_id) or 0)
 
-    assert cmd_edit("timi") == 0
+    assert _cmd_edit("timi") == 0
     assert called == ["timi"]
 
 
@@ -123,16 +154,32 @@ def test_edit_does_not_reapply_on_editor_failure(monkeypatch, tmp_path) -> None:
     provider_dir.mkdir()
     (provider_dir / "timi.toml").write_text('model_providers = "OpenAI"\n')
 
-    monkeypatch.setattr("cxf.cli.PROVIDERS_DIR", provider_dir)
-    monkeypatch.setattr("cxf.cli.CXF_HOME", tmp_path)
+    monkeypatch.setattr("cxf.config.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.codex.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.config.CXF_HOME", tmp_path)
     monkeypatch.setenv("EDITOR", "false")
     monkeypatch.setattr("subprocess.call", lambda _: 7)
 
     called: list[str] = []
-    monkeypatch.setattr("cxf.cli.cmd_use", lambda provider_id: called.append(provider_id) or 0)
+    monkeypatch.setattr("cxf.cli._cmd_use", lambda provider_id: called.append(provider_id) or 0)
 
-    assert cmd_edit("timi") == 7
+    assert _cmd_edit("timi") == 7
     assert called == []
+
+
+def test_edit_prompts_before_creating_new_provider(monkeypatch, tmp_path) -> None:
+    provider_dir = tmp_path / "providers"
+    provider_dir.mkdir()
+
+    monkeypatch.setattr("cxf.config.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.codex.PROVIDERS_DIR", provider_dir)
+    monkeypatch.setattr("cxf.config.CXF_HOME", tmp_path)
+    monkeypatch.setenv("EDITOR", "true")
+    monkeypatch.setattr("subprocess.call", lambda _: 0)
+    monkeypatch.setattr("builtins.input", lambda _="": "n")
+
+    result = _cmd_edit("nonexistent")
+    assert result == 1
 
 
 def test_parser_accepts_claude_use_provider() -> None:
@@ -171,3 +218,47 @@ def test_apply_claude_provider_preserves_unmanaged_env() -> None:
     assert "ANTHROPIC_API_KEY" not in result["env"]
     assert result["model"] == "deepseek-v4-pro[1m]"
     assert result["permissions"] == {"allow": ["Read(*)"]}
+
+
+def test_format_bool() -> None:
+    assert _format_bool(True) == "on"
+    assert _format_bool(False) == "off"
+    assert _format_bool(None) == "-"
+    assert _format_bool("") == "-"
+
+
+def test_redact_key_hides_api_key() -> None:
+    clean = _redact_key('{"OPENAI_API_KEY": "sk-real-deal"}')
+    assert "sk-real-deal" not in clean
+    assert "sk-***" in clean
+
+
+def test_redact_key_handles_invalid_json() -> None:
+    assert _redact_key("not json") == "not json"
+
+
+def test_redact_claude_settings_hides_multiple_keys() -> None:
+    raw = json.dumps({
+        "env": {
+            "ANTHROPIC_AUTH_TOKEN": "secret-1",
+            "GITHUB_TOKEN": "secret-2",
+            "ANTHROPIC_MODEL": "claude-4",
+        }
+    })
+    clean = _redact_claude_settings(raw)
+    data = json.loads(clean)
+    assert data["env"]["ANTHROPIC_AUTH_TOKEN"] == "***"
+    assert data["env"]["GITHUB_TOKEN"] == "***"
+    assert data["env"]["ANTHROPIC_MODEL"] == "claude-4"
+
+
+def test_diff_shows_changes() -> None:
+    before = "a\nb\nc\n"
+    after = "a\nb\nx\nc\n"
+    d = _diff(before, after, "old", "new")
+    assert "+x" in d
+
+
+def test_diff_empty_for_identical() -> None:
+    d = _diff("same\n", "same\n", "f", "f")
+    assert d == ""
