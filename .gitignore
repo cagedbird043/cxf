@@ -6,3 +6,6 @@ build/
 *.egg-info/
 .venv/
 .zcompdump*
+.coverage*
+coverage.xml
+htmlcov/
