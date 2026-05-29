@@ -49,7 +49,20 @@ from cxf.config import (
     _write_json,
 )
 from cxf.models import Provider
-from cxf.ux import _, _confirm, _error, _format_bool, _prompt, _prompt_bool
+from cxf.ux import (
+    _,
+    _confirm,
+    _error,
+    _format_bool,
+    _prompt,
+    _prompt_bool,
+    console,
+    print_claude_current_panel,
+    print_current_panel,
+    print_diff,
+    print_provider_table,
+    print_status,
+)
 from cxf.ux import _diff as diff
 from cxf.ux import _redact_claude_settings as redact_claude_settings
 from cxf.ux import _redact_key as redact_key
@@ -164,10 +177,12 @@ def _cmd_init(name: str | None) -> int:
 
 def _cmd_list() -> int:
     _ensure_layout()
+    rows: list[tuple[str, str, str, str]] = []
     for provider_id in _provider_ids():
         provider = _load_provider(provider_id)
         ws = "ws" if provider.websocket else "sse"
-        print(f"{provider.provider_id}\t{provider.model_providers}\t{provider.base_url}\t{ws}")
+        rows.append((provider.provider_id, provider.model_providers, provider.base_url, ws))
+    print_provider_table(rows)
     return 0
 
 
@@ -186,13 +201,15 @@ def _cmd_current() -> int:
     ws_val = provider_table.get("supports_websockets", "") if _is_table_like(provider_table) else ""
     auth_controlled = bool(provider and auth.get("OPENAI_API_KEY") == provider.api_key)
 
-    print(f"{_('lbl.provider')}: {provider_id or '-'}")
-    print(f"{_('lbl.model_provider')}: {model_provider or '-'}")
-    print(f"{_('lbl.model')}: {config.get('model', base.get('model', '-'))}")
-    print(f"{_('lbl.review_model')}: {config.get('review_model', base.get('review_model', '-'))}")
-    print(f"{_('lbl.base_url')}: {base_url or '-'}")
-    print(f"{_('lbl.websocket')}: {_format_bool(ws_val)}")
-    print(f"{_('lbl.auth')}: {_('lbl.controlled') if auth_controlled else _('lbl.unknown')}")
+    print_current_panel(
+        provider_id=provider_id or "-",
+        model_provider=model_provider or "-",
+        model=str(config.get("model", base.get("model", "-"))),
+        review_model=str(config.get("review_model", base.get("review_model", "-"))),
+        base_url=base_url or "-",
+        websocket=_format_bool(ws_val),
+        auth=_("lbl.controlled") if auth_controlled else _("lbl.unknown"),
+    )
     return 0
 
 
@@ -215,10 +232,10 @@ def _cmd_use(provider_id: str | None) -> int:
     config_diff = diff(before_config, after_config, str(CODEX_CONFIG_PATH), str(CODEX_CONFIG_PATH))
     auth_diff = diff(redact_key(before_auth), redact_key(after_auth), str(AUTH_PATH), str(AUTH_PATH))
     if config_diff:
-        print(config_diff, end="")
+        print_diff(config_diff)
     if auth_diff:
-        print(auth_diff, end="")
-    print(_("msg.current", provider.provider_id, provider.model_providers, provider.base_url))
+        print_diff(auth_diff)
+    console.print(_("msg.current", provider.provider_id, provider.model_providers, provider.base_url))
     return 0
 
 
@@ -309,30 +326,40 @@ def _cmd_status() -> int:
     config = _read_toml(CODEX_CONFIG_PATH)
     provider_id = _read_provider_probe(raw_config)
     if not provider_id:
-        print(_("status.controlled_no"))
-        print(f"  reason: {_('status.reason.missing_probe')}")
+        print_status(
+            _("status.controlled_no"),
+            "-",
+            [_("status.reason.missing_probe")],
+        )
         return 1
     try:
         provider = _load_provider(provider_id)
     except SystemExit:
-        print(_("status.controlled_no"))
-        print(f"  reason: {_('status.reason.missing_file', provider_id)}")
+        print_status(
+            _("status.controlled_no"),
+            "-",
+            [_("status.reason.missing_file", provider_id)],
+        )
         return 1
 
     auth = _read_auth()
     auth_ok = auth.get("OPENAI_API_KEY") == provider.api_key
     drift = _provider_drift(config, _load_base(), provider)
+    provider_label = f"{provider.provider_id} -> {provider.model_providers}"
+
     if not drift and auth_ok:
-        print(_("status.controlled_yes"))
-        print(f"  {_('lbl.provider')}: {provider.provider_id} -> {provider.model_providers}")
+        print_status(_("status.controlled_yes"), provider_label)
         return 0
-    print(_("status.controlled_partial"))
-    print(f"  {_('lbl.provider')}: {provider.provider_id} -> {provider.model_providers}")
-    for key in drift:
-        print(f"  {_('status.drift', key)}")
+
+    items: list[str] = list(drift)
     if not auth_ok:
-        print(f"  {_('status.drift_auth')}")
-    print(f"  {_('status.fix_use', provider.provider_id)}")
+        items.append(_("status.drift_auth"))
+    print_status(
+        _("status.controlled_partial"),
+        provider_label,
+        drift_items=items,
+        fix_cmd=_("status.fix_use", provider.provider_id),
+    )
     return 2
 
 
@@ -378,13 +405,15 @@ def _cmd_claude_current() -> int:
         val = env.get(key)
         return str(val) if val else "-"
 
-    print(f"{_('lbl.claude_provider')}: {v(CLAUDE_PROVIDER_ENV)}")
-    print(f"{_('lbl.base_url')}: {v('ANTHROPIC_BASE_URL')}")
-    print(f"{_('lbl.model')}: {v('ANTHROPIC_MODEL') or settings.get('model', '-')}")
-    print(f"{_('lbl.model_opus')}: {v('ANTHROPIC_DEFAULT_OPUS_MODEL')}")
-    print(f"{_('lbl.model_sonnet')}: {v('ANTHROPIC_DEFAULT_SONNET_MODEL')}")
-    print(f"{_('lbl.model_haiku')}: {v('ANTHROPIC_DEFAULT_HAIKU_MODEL')}")
-    print(f"{_('lbl.subagent')}: {v('CLAUDE_CODE_SUBAGENT_MODEL')}")
+    print_claude_current_panel(
+        claude_provider=v(CLAUDE_PROVIDER_ENV),
+        base_url=v("ANTHROPIC_BASE_URL"),
+        model=v("ANTHROPIC_MODEL") or str(settings.get("model", "-")),
+        opus=v("ANTHROPIC_DEFAULT_OPUS_MODEL"),
+        sonnet=v("ANTHROPIC_DEFAULT_SONNET_MODEL"),
+        haiku=v("ANTHROPIC_DEFAULT_HAIKU_MODEL"),
+        subagent=v("CLAUDE_CODE_SUBAGENT_MODEL"),
+    )
     return 0
 
 
@@ -444,25 +473,32 @@ def _cmd_claude_status() -> int:
     env = settings.get("env", {}) if isinstance(settings.get("env"), dict) else {}
     provider_id = str(env.get(CLAUDE_PROVIDER_ENV, ""))
     if not provider_id:
-        print(_("status.controlled_no"))
-        print(f"  reason: {_('status.reason.missing_claude_env')}")
+        print_status(
+            _("status.controlled_no"),
+            "-",
+            [_("status.reason.missing_claude_env")],
+        )
         return 1
     try:
         provider = _load_claude_provider(provider_id)
     except SystemExit:
-        print(_("status.controlled_no"))
-        print(f"  reason: {_('status.reason.missing_claude_file', provider_id)}")
+        print_status(
+            _("status.controlled_no"),
+            "-",
+            [_("status.reason.missing_claude_file", provider_id)],
+        )
         return 1
     drift = [key for key, value in provider.env.items() if value and env.get(key) != value]
+    provider_label = f"{provider.provider_id} -> {provider.env.get('ANTHROPIC_BASE_URL', '-')}"
     if not drift:
-        print(_("status.controlled_yes"))
-        print(f"  {_('lbl.claude_provider')}: {provider.provider_id} -> {provider.env.get('ANTHROPIC_BASE_URL', '-')}")
+        print_status(_("status.controlled_yes"), provider_label)
         return 0
-    print(_("status.controlled_partial"))
-    print(f"  {_('lbl.claude_provider')}: {provider.provider_id} -> {provider.env.get('ANTHROPIC_BASE_URL', '-')}")
-    for key in drift:
-        print(f"  {_('status.drift', f'env.{key}')}")
-    print(f"  {_('status.fix_claude_use', provider.provider_id)}")
+    print_status(
+        _("status.controlled_partial"),
+        provider_label,
+        drift_items=[f"env.{k}" for k in drift],
+        fix_cmd=_("status.fix_claude_use", provider.provider_id),
+    )
     return 2
 
 

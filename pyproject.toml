@@ -9,7 +9,7 @@ description = "Codex provider pointer manager"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "Mice", email = "cagedbird043@gmail.com" }]
-dependencies = ["tomlkit>=0.13"]
+dependencies = ["tomlkit>=0.13", "rich>=13.0"]
 
 [project.scripts]
 cxf = "cxf.cli:main"

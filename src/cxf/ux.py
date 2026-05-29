@@ -8,6 +8,12 @@ import sys
 from pathlib import Path
 from typing import Any, NoReturn
 
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+
+console = Console()
+
 # ── locale detection ───────────────────────────────────────────────────
 
 _IS_ZH = os.environ.get("LANG", "").startswith("zh")
@@ -344,3 +350,101 @@ def _redact_claude_settings(text: str) -> str:
             if env.get(key):
                 env[key] = "***"
     return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
+
+
+# ── rich output ────────────────────────────────────────────────────────
+
+
+def print_provider_table(rows: list[tuple[str, str, str, str]]) -> None:
+    """Print provider list as a rich table."""
+    table = Table()
+    table.add_column(_("lbl.provider"), style="cyan")
+    table.add_column(_("lbl.model_provider"))
+    table.add_column(_("lbl.base_url"))
+    table.add_column(_("lbl.websocket"))
+    for pid, mp, url, ws in rows:
+        table.add_row(pid, mp, url, ws)
+    console.print(table)
+
+
+def print_current_panel(
+    provider_id: str,
+    model_provider: str,
+    model: str,
+    review_model: str,
+    base_url: str,
+    websocket: str,
+    auth: str,
+) -> None:
+    """Print current provider status as a rich panel."""
+    from rich.table import Table as GridTable
+
+    grid = GridTable.grid(padding=(0, 2))
+    grid.add_column(style="bold")
+    grid.add_column()
+
+    def row(label_key: str, value: str) -> None:
+        grid.add_row(_(label_key), value)
+
+    row("lbl.provider", provider_id)
+    row("lbl.model_provider", model_provider)
+    row("lbl.model", model)
+    row("lbl.review_model", review_model)
+    row("lbl.base_url", base_url)
+    row("lbl.websocket", websocket)
+    row("lbl.auth", auth)
+    console.print(Panel(grid, title="current", border_style="blue"))
+
+
+def print_claude_current_panel(
+    claude_provider: str,
+    base_url: str,
+    model: str,
+    opus: str,
+    sonnet: str,
+    haiku: str,
+    subagent: str,
+) -> None:
+    """Print current Claude provider as a rich panel."""
+    from rich.table import Table as GridTable
+
+    grid = GridTable.grid(padding=(0, 2))
+    grid.add_column(style="bold")
+    grid.add_column()
+
+    def row(label_key: str, value: str) -> None:
+        grid.add_row(_(label_key), value)
+
+    row("lbl.claude_provider", claude_provider)
+    row("lbl.base_url", base_url)
+    row("lbl.model", model)
+    row("lbl.model_opus", opus)
+    row("lbl.model_sonnet", sonnet)
+    row("lbl.model_haiku", haiku)
+    row("lbl.subagent", subagent)
+    console.print(Panel(grid, title="claude current", border_style="green"))
+
+
+def print_status(
+    status_text: str,
+    provider: str,
+    drift_items: list[str] | None = None,
+    fix_cmd: str | None = None,
+) -> None:
+    """Print status with color coding."""
+    style = "green" if status_text == "controlled: yes" else ("yellow" if "partial" in status_text else "red")
+    console.print(f"[{style}]{status_text}[/]")
+    console.print(f"  {_('lbl.provider')}: {provider}")
+    if drift_items:
+        for d in drift_items:
+            console.print(f"  [yellow]{_('status.drift', d)}[/]")
+    if fix_cmd:
+        console.print(f"  [bold]{fix_cmd}[/]")
+
+
+def print_diff(diff_text: str) -> None:
+    """Print diff with syntax highlighting."""
+    if diff_text:
+        from rich.syntax import Syntax
+
+        console.print(Syntax(diff_text, "diff", theme="ansi_dark"))
