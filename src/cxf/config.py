@@ -48,6 +48,7 @@ def _is_table_like(value: Any) -> bool:
 def _write_toml(path: Path, doc: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(tomlkit.dumps(doc), encoding="utf-8")
+    path.chmod(0o600)
 
 
 # ── JSON helpers ───────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    path.chmod(0o600)
 
 
 # ── auth ───────────────────────────────────────────────────────────────
@@ -79,12 +81,15 @@ def _read_auth() -> dict[str, Any]:
 
 
 def _write_auth(api_key: str) -> None:
-    # minimal write: only if key differs
-    if _read_auth().get("OPENAI_API_KEY") == api_key:
+    # merge: preserve pre-existing fields (e.g. OPENAI_ORG_ID)
+    existing = _read_auth()
+    if existing.get("OPENAI_API_KEY") == api_key:
         return
+    existing["OPENAI_API_KEY"] = api_key
+    existing["source"] = "cxf"
     AUTH_PATH.parent.mkdir(parents=True, exist_ok=True)
     AUTH_PATH.write_text(
-        json.dumps({"OPENAI_API_KEY": api_key, "source": "cxf"}, indent=2) + "\n",
+        json.dumps(existing, indent=2) + "\n",
         encoding="utf-8",
     )
     AUTH_PATH.chmod(0o600)

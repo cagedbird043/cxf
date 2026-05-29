@@ -11,6 +11,7 @@ from typing import Any, Callable
 
 import tomlkit
 
+from cxf import __version__
 from cxf.claude import (
     _apply_claude_provider,
     _claude_provider_ids,
@@ -47,6 +48,7 @@ from cxf.config import (
     _write_auth,
     _write_default_base,
     _write_json,
+    _write_toml,
 )
 from cxf.models import Provider
 from cxf.ux import (
@@ -72,6 +74,7 @@ from cxf.ux import _redact_key as redact_key
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cxf", description="Codex provider pointer manager.")
+    parser.add_argument("--version", action="version", version=f"cxf {__version__}")
     sub = parser.add_subparsers(dest="command")
 
     # init
@@ -216,7 +219,7 @@ def _cmd_current() -> int:
 def _cmd_use(provider_id: str | None) -> int:
     if provider_id is None:
         _subcommand_help("use")
-        return 0
+        return 1
     _ensure_layout()
     provider = _load_provider(provider_id)
     base = _load_base()
@@ -249,6 +252,10 @@ def _cmd_add(args: argparse.Namespace) -> int:
         api_key = args.api_key or ""
         wire_api = args.wire_api or "responses"
         websocket = not args.no_websocket
+        if not base_url:
+            _error("err.add.no_base_url")
+        if not api_key:
+            _error("err.add.no_api_key")
     else:
         # interactive mode
         provider_id = _prompt("p.provider_id")
@@ -284,17 +291,15 @@ def _cmd_edit(provider_id: str | None, yes: bool = False) -> int:
         if not _confirm("p.create_provider", provider_id, yes=yes):
             print(_("p.aborted"))
             return 1
-        _write_provider(
-            Provider(
-                provider_id=provider_id,
-                model_providers=_prompt("p.model_providers", "OpenAI"),
-                base_url=_prompt("p.base_url"),
-                api_key=_prompt("p.api_key", secret=True),
-                wire_api=_prompt("p.wire_api", "responses"),
-                requires_openai_auth=True,
-                websocket=_prompt_bool("p.websocket", True),
-            )
-        )
+        # write a minimal stub with defaults; user will edit in $EDITOR
+        stub = tomlkit.document()
+        stub.add("model_providers", "OpenAI")
+        stub.add("base_url", "")
+        stub.add("api_key", "")
+        stub.add("wire_api", "responses")
+        stub.add("requires_openai_auth", True)
+        stub.add("websocket", True)
+        _write_toml(target, stub)
 
     editor = os.environ.get("EDITOR") or os.environ.get("VISUAL")
     if not editor:
@@ -391,9 +396,16 @@ def _cmd_claude_init(name: str | None) -> int:
 
 def _cmd_claude_list() -> int:
     _ensure_claude_layout()
+    rows: list[tuple[str, str, str]] = []
     for pid in _claude_provider_ids():
         prov = _load_claude_provider(pid)
-        print(f"{prov.provider_id}\t{prov.env.get('ANTHROPIC_BASE_URL', '-')}\t{prov.env.get('ANTHROPIC_MODEL', '-')}")
+        rows.append((
+            prov.provider_id,
+            prov.env.get("ANTHROPIC_BASE_URL", "-"),
+            prov.env.get("ANTHROPIC_MODEL", "-"),
+        ))
+    from cxf.ux import print_claude_provider_table
+    print_claude_provider_table(rows)
     return 0
 
 

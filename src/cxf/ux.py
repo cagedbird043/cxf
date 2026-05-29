@@ -242,6 +242,14 @@ _I18N: dict[str, tuple[str, str]] = {
         "unexpected argument: {}",
         "意外的参数: {}",
     ),
+    "err.add.no_base_url": (
+        "base_url is required in non-interactive mode",
+        "非交互模式下必须指定 base_url",
+    ),
+    "err.add.no_api_key": (
+        "api_key is required in non-interactive mode",
+        "非交互模式下必须指定 api_key",
+    ),
     # -- generic utility strings --
     "yes": ("yes", "是"),
     "no": ("no", "否"),
@@ -364,6 +372,17 @@ def print_provider_table(rows: list[tuple[str, str, str, str]]) -> None:
     table.add_column(_("lbl.websocket"))
     for pid, mp, url, ws in rows:
         table.add_row(pid, mp, url, ws)
+    console.print(table)
+
+
+def print_claude_provider_table(rows: list[tuple[str, str, str]]) -> None:
+    """Print claude provider list as a rich table."""
+    table = Table()
+    table.add_column(_("lbl.provider"), style="green")
+    table.add_column(_("lbl.base_url"))
+    table.add_column(_("lbl.model"))
+    for pid, url, model in rows:
+        table.add_row(pid, url, model)
     console.print(table)
 
 
