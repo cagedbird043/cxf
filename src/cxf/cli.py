@@ -65,8 +65,6 @@ from cxf.ux import (
     print_status,
 )
 from cxf.ux import _diff as diff
-from cxf.ux import _redact_claude_settings as redact_claude_settings
-from cxf.ux import _redact_key as redact_key
 
 # ── parser ─────────────────────────────────────────────────────────────
 
@@ -248,7 +246,7 @@ def _cmd_use(provider_id: str | None) -> int:
     after_auth = AUTH_PATH.read_text(encoding="utf-8")
 
     config_diff = diff(before_config, after_config, str(CODEX_CONFIG_PATH), str(CODEX_CONFIG_PATH))
-    auth_diff = diff(redact_key(before_auth), redact_key(after_auth), str(AUTH_PATH), str(AUTH_PATH))
+    auth_diff = diff(before_auth, after_auth, str(AUTH_PATH), str(AUTH_PATH))
     if config_diff:
         print_diff(config_diff)
     if auth_diff:
@@ -533,8 +531,8 @@ def _cmd_claude_use(provider_id: str | None) -> int:
     after = json.dumps(after_doc, ensure_ascii=False, indent=2) + "\n"
     _write_json(CLAUDE_SETTINGS_PATH, after_doc)
     d = diff(
-        redact_claude_settings(before),
-        redact_claude_settings(after),
+        before,
+        after,
         str(CLAUDE_SETTINGS_PATH),
         str(CLAUDE_SETTINGS_PATH),
     )

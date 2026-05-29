@@ -42,7 +42,7 @@ ux.py       — i18n（`_()` 函数，60+ 翻译键）、Rich 输出面板、dif
 - **所有含 API key 的文件写入后必须 `chmod(0o600)`**。已在 `config.py` 的 `_write_toml`/`_write_json`/`_write_auth` 和 `cli.py` 的 `_cmd_use` 中实现。新增写路径要同样处理。
 - 所有文件操作必须指定 `encoding="utf-8"`。
 - 不用 `sys.exit()`——统一用 `raise SystemExit(main())` 或 return int。
-- 密码/密钥不在日志或异常信息中泄露。
+- **API key 在终端输入和 diff 显示时不隐藏、不脱敏。** 用户观点：这些是中转站/代理的廉价 key，不是高价值密钥。隐藏输入反而让用户无法确认输入是否正确。不要用 `getpass`、不要做 `redact`。磁盘文件仍要 `chmod(0o600)` 防误读。
 
 ### 📁 代码规范
 
