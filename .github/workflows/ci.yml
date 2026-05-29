@@ -7,38 +7,35 @@ on:
     branches: [main]
 
 jobs:
-  lint-test:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: "pip"
+      - run: pip install -e . ruff
+      - run: ruff check .
+
+  test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: "pip"
+      - run: pip install -e . pytest coverage
+      - run: coverage run -m pytest tests/ -q
+      - run: coverage report -m
 
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -e .
-
-      - name: Lint with ruff
-        run: pip install ruff && ruff check .
-
-      - name: Test with pytest
-        run: pip install pytest && pytest tests/ -q
-
-      - name: Check coverage
+      - name: Generate coverage XML for Codecov
         if: matrix.python-version == '3.13'
-        run: |
-          pip install coverage
-          coverage run -m pytest tests/ -q
-          coverage report -m
-          coverage xml -o coverage.xml
+        run: coverage xml -o coverage.xml
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.13'
