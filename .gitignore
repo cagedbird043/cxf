@@ -1,3 +1,4 @@
+# Python (legacy)
 __pycache__/
 .pytest_cache/
 *.pyc
@@ -9,3 +10,8 @@ build/
 .coverage*
 coverage.xml
 htmlcov/
+
+# Go
+/cxf
+/cxf-*
+checksums.txt

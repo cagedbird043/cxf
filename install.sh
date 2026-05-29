@@ -1,26 +1,60 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+# install.sh — One-command installer for cxf CLI
+# Usage: curl -sfL https://cagedbird.cn/cxf/install.sh | sh
+set -eu
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-venv_dir="$repo_dir/.venv"
+REPO="cagedbird043/cxf"
+BINARY="cxf"
 
-python3 -m venv "$venv_dir"
-"$venv_dir/bin/python" -m pip install -e "$repo_dir"
+# Platform detection
+OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
+ARCH="$(uname -m)"
+case "$ARCH" in
+  x86_64|amd64) ARCH="amd64" ;;
+  arm64|aarch64) ARCH="arm64" ;;
+  *) echo "Unsupported architecture: $ARCH"; exit 1 ;;
+esac
 
-bin_dir="${HOME}/.local/bin"
-mkdir -p "$bin_dir"
-cat > "$bin_dir/cxf" <<WRAP
-#!/usr/bin/env bash
-exec "$venv_dir/bin/cxf" "\$@"
-WRAP
-chmod +x "$bin_dir/cxf"
+if command -v go >/dev/null 2>&1; then
+  echo "  -> installing via go install..."
+  GOPROXY=direct go install "github.com/${REPO}@latest"
+  BIN_PATH="$(go env GOPATH 2>/dev/null || echo "$HOME/go")/bin/$BINARY"
+  echo "  OK installed to $BIN_PATH"
+else
+  BIN_PATH="${HOME}/.local/bin/${BINARY}"
+  URL="https://github.com/${REPO}/releases/latest/download/${BINARY}-${OS}-${ARCH}"
 
-completion_dir="${HOME}/.local/share/zsh/site-functions"
-mkdir -p "$completion_dir"
-"$venv_dir/bin/cxf" completion zsh > "$completion_dir/_cxf" 2>/dev/null || true
+  echo "  -> downloading ${BINARY} for ${OS}/${ARCH}..."
+  mkdir -p "$(dirname "$BIN_PATH")"
 
-rm -f "${ZDOTDIR:-$HOME}"/.zcompdump "${ZDOTDIR:-$HOME}"/.zcompdump.* 2>/dev/null || true
+  if command -v curl >/dev/null 2>&1; then
+    curl -sfL "$URL" -o "$BIN_PATH"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q "$URL" -O "$BIN_PATH"
+  else
+    echo "  ERR: need curl or wget"
+    exit 1
+  fi
+  chmod +x "$BIN_PATH"
+  echo "  OK installed to $BIN_PATH"
+fi
 
-echo "installed: $bin_dir/cxf"
-echo "venv: $venv_dir"
-echo "completion: $completion_dir/_cxf"
+# Install zsh completion
+COMP_DIR="${HOME}/.local/share/zsh/site-functions"
+mkdir -p "$COMP_DIR"
+if [ -x "$BIN_PATH" ]; then
+  "$BIN_PATH" completion zsh > "$COMP_DIR/_$BINARY" 2>/dev/null && \
+    echo "  OK zsh completion installed"
+fi
+
+echo ""
+echo "  cxf installed successfully!"
+echo ""
+echo "  Make sure this is in your PATH:"
+echo "    export PATH=\"\$HOME/.local/bin:\$PATH\""
+echo ""
+echo "  Add to .zshrc for tab completion:"
+echo "    fpath=(~/.local/share/zsh/site-functions \$fpath)"
+echo ""
+echo "  Restart your shell:"
+echo "    exec zsh"
