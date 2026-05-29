@@ -106,9 +106,11 @@ def test_extra_arguments_are_rejected(capsys) -> None:
     assert "extra" in captured.err
 
 
-def test_missing_command_prints_usage(capsys) -> None:
-    with pytest.raises(SystemExit):
-        build_parser().parse_args([])
+def test_missing_command_shows_help(capsys) -> None:
+    rc = main([])
+    assert rc == 0
+    captured = capsys.readouterr()
+    assert "usage: cxf" in captured.out
 
 
 # ── prompts ────────────────────────────────────────────────────────────

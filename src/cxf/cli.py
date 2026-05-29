@@ -59,7 +59,7 @@ from cxf.ux import _redact_key as redact_key
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cxf", description="Codex provider pointer manager.")
-    sub = parser.add_subparsers(dest="command", required=True)
+    sub = parser.add_subparsers(dest="command")
 
     # init
     init_p = sub.add_parser("init", help=_("help.init"))
@@ -467,6 +467,10 @@ def main(argv: list[str] | None = None) -> int:
     args.extra = extra
     if _reject_extra_args(args):
         return 2
+
+    if not args.command:
+        parser.print_help()
+        return 0
 
     if args.command == "claude":
         handler = _CLAUDE_COMMANDS.get(args.claude_command)
