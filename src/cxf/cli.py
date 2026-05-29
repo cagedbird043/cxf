@@ -48,7 +48,7 @@ from cxf.config import (
     _write_json,
     _write_toml,
 )
-from cxf.models import Provider
+from cxf.models import ClaudeProvider, Provider
 from cxf.ux import (
     _,
     _confirm,
@@ -109,6 +109,11 @@ def build_parser() -> argparse.ArgumentParser:
     remove_p.add_argument("provider", nargs="?", help=_("arg.provider"))
     remove_p.add_argument("-y", "--yes", action="store_true", help=_("arg.yes"))
 
+    # rename
+    rename_p = sub.add_parser("rename", help=_("help.rename"))
+    rename_p.add_argument("old", help=_("arg.rename.old"))
+    rename_p.add_argument("new", help=_("arg.rename.new"))
+
     # status (was doctor)
     sub.add_parser("status", help=_("help.status"))
 
@@ -128,9 +133,19 @@ def build_parser() -> argparse.ArgumentParser:
     claude_edit = claude_sub.add_parser("edit", help=_("help.claude_edit"))
     claude_edit.add_argument("provider", nargs="?", help=_("arg.provider"))
 
+    claude_add = claude_sub.add_parser("add", help=_("help.claude_add"))
+    claude_add.add_argument("--provider-id", help=_("arg.claude_add.provider_id"))
+    claude_add.add_argument("--base-url", help=_("arg.claude_add.base_url"))
+    claude_add.add_argument("--api-key", help=_("arg.claude_add.api_key"))
+    claude_add.add_argument("--model", help=_("arg.claude_add.model"))
+
     claude_remove = claude_sub.add_parser("remove", help=_("help.claude_remove"))
     claude_remove.add_argument("provider", nargs="?", help=_("arg.provider"))
     claude_remove.add_argument("-y", "--yes", action="store_true", help=_("arg.yes"))
+
+    claude_rename = claude_sub.add_parser("rename", help=_("help.claude_rename"))
+    claude_rename.add_argument("old", help=_("arg.rename.old"))
+    claude_rename.add_argument("new", help=_("arg.rename.new"))
 
     claude_sub.add_parser("status", help=_("help.claude_status"))
 
@@ -331,6 +346,19 @@ def _cmd_remove(provider_id: str | None, yes: bool = False) -> int:
     return 0
 
 
+def _cmd_rename(old: str, new: str) -> int:
+    _ensure_layout()
+    old_path = PROVIDERS_DIR / f"{old}.toml"
+    new_path = PROVIDERS_DIR / f"{new}.toml"
+    if not old_path.exists():
+        _error("err.rename.not_found", old)
+    if new_path.exists():
+        _error("err.rename.exists", new)
+    old_path.rename(new_path)
+    print(_("msg.renamed", old, new))
+    return 0
+
+
 def _cmd_status() -> int:
     raw_config = CODEX_CONFIG_PATH.read_text(encoding="utf-8") if CODEX_CONFIG_PATH.exists() else ""
     config = _read_toml(CODEX_CONFIG_PATH)
@@ -417,6 +445,39 @@ def _cmd_claude_list() -> int:
     return 0
 
 
+def _cmd_claude_add(args: argparse.Namespace) -> int:
+    _ensure_claude_layout()
+    if args.provider_id:
+        # non-interactive mode
+        provider_id = args.provider_id
+        base_url = args.base_url or ""
+        api_key = args.api_key or ""
+        model = args.model or ""
+        if not base_url:
+            _error("err.claude_add.no_base_url")
+        if not api_key:
+            _error("err.claude_add.no_api_key")
+    else:
+        # interactive mode
+        provider_id = _prompt("p.claude_provider_id")
+        if not provider_id:
+            _error("p.provider_id_required")
+        base_url = _prompt("p.claude_base_url")
+        api_key = _prompt("p.claude_api_key", secret=True)
+        model = _prompt("p.claude_model", "deepseek-v4-flash")
+
+    env = {
+        "ANTHROPIC_BASE_URL": base_url,
+        "ANTHROPIC_AUTH_TOKEN": api_key,
+    }
+    if model:
+        env["ANTHROPIC_MODEL"] = model
+    provider = ClaudeProvider(provider_id=provider_id, env=env)
+    _write_claude_provider(provider)
+    print(_("msg.created", provider.path))
+    return 0
+
+
 def _cmd_claude_current() -> int:
     settings = _read_json(CLAUDE_SETTINGS_PATH)
     env = settings.get("env", {}) if isinstance(settings.get("env"), dict) else {}
@@ -451,6 +512,12 @@ def _cmd_claude_edit(provider_id: str | None) -> int:
     result = subprocess.call([editor, str(target)])
     if result != 0:
         return result
+    # reload after editing to validate
+    edited = _load_claude_provider(provider_id)
+    token = edited.env.get("ANTHROPIC_AUTH_TOKEN", "")
+    if not token:
+        _warn("err.claude_edit.no_key", provider_id)
+        return 1
     return _cmd_claude_use(provider_id)
 
 
@@ -500,6 +567,19 @@ def _cmd_claude_remove(provider_id: str | None, yes: bool = False) -> int:
     return 0
 
 
+def _cmd_claude_rename(old: str, new: str) -> int:
+    _ensure_claude_layout()
+    old_path = CLAUDE_PROVIDERS_DIR / f"{old}.toml"
+    new_path = CLAUDE_PROVIDERS_DIR / f"{new}.toml"
+    if not old_path.exists():
+        _error("err.claude_rename.not_found", old)
+    if new_path.exists():
+        _error("err.claude_rename.exists", new)
+    old_path.rename(new_path)
+    print(_("msg.renamed", old, new))
+    return 0
+
+
 def _cmd_claude_status() -> int:
     settings = _read_json(CLAUDE_SETTINGS_PATH)
     env = settings.get("env", {}) if isinstance(settings.get("env"), dict) else {}
@@ -544,6 +624,7 @@ _CODEX_COMMANDS: dict[str, Callable[..., int]] = {
     "add": lambda args: _cmd_add(args),
     "edit": lambda args: _cmd_edit(args.provider, args.yes),
     "remove": lambda args: _cmd_remove(args.provider, args.yes),
+    "rename": lambda args: _cmd_rename(args.old, args.new),
     "status": lambda _: _cmd_status(),
 }
 
@@ -551,9 +632,11 @@ _CLAUDE_COMMANDS: dict[str, Callable[..., int]] = {
     "init": lambda args: _cmd_claude_init(args.name),
     "list": lambda _: _cmd_claude_list(),
     "current": lambda _: _cmd_claude_current(),
+    "add": lambda args: _cmd_claude_add(args),
     "use": lambda args: _cmd_claude_use(args.provider),
     "edit": lambda args: _cmd_claude_edit(args.provider),
     "remove": lambda args: _cmd_claude_remove(args.provider, args.yes),
+    "rename": lambda args: _cmd_claude_rename(args.old, args.new),
     "status": lambda _: _cmd_claude_status(),
 }
 

@@ -12,14 +12,18 @@ from cxf.claude import (
 )
 from cxf.cli import (
     _cmd_add,
+    _cmd_claude_add,
+    _cmd_claude_edit,
     _cmd_claude_init,
     _cmd_claude_remove,
+    _cmd_claude_rename,
     _cmd_claude_status,
     _cmd_claude_use,
     _cmd_current,
     _cmd_edit,
     _cmd_init,
     _cmd_remove,
+    _cmd_rename,
     _cmd_status,
     _cmd_use,
     build_parser,
@@ -817,3 +821,147 @@ def test_cmd_claude_remove_yes_flag(monkeypatch, tmp_path) -> None:
 
     assert _cmd_claude_remove("deepseek", yes=True) == 0
     assert not target.exists()
+
+
+# ── rename ──────────────────────────────────────────────────────────
+
+
+def test_rename_renames_provider(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    old = paths["provider_dir"] / "oldname.toml"
+    new = paths["provider_dir"] / "newname.toml"
+    old.write_text('model_providers = "OpenAI"\n', encoding="utf-8")
+    assert _cmd_rename("oldname", "newname") == 0
+    assert not old.exists()
+    assert new.exists()
+
+
+def test_rename_not_found(monkeypatch, tmp_path) -> None:
+    _patch_paths(monkeypatch, tmp_path)
+    with pytest.raises(SystemExit):
+        _cmd_rename("nonexistent", "newname")
+
+
+def test_rename_target_exists(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    (paths["provider_dir"] / "oldname.toml").write_text('model_providers = "A"\n', encoding="utf-8")
+    (paths["provider_dir"] / "newname.toml").write_text('model_providers = "B"\n', encoding="utf-8")
+    with pytest.raises(SystemExit):
+        _cmd_rename("oldname", "newname")
+
+
+# ── claude add ──────────────────────────────────────────────────────
+
+
+def test_cmd_claude_add_noninteractive(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    args = argparse.Namespace(
+        provider_id="test-provider",
+        base_url="https://api.example.com",
+        api_key="sk-test",
+        model="deepseek-v4-flash",
+    )
+    assert _cmd_claude_add(args) == 0
+    target = paths["claude_provider_dir"] / "test-provider.toml"
+    assert target.exists()
+    doc = tomlkit.parse(target.read_text(encoding="utf-8"))
+    assert doc["env"]["ANTHROPIC_BASE_URL"] == "https://api.example.com"
+
+
+def test_cmd_claude_add_noninteractive_missing_base_url(monkeypatch, tmp_path) -> None:
+    _patch_paths(monkeypatch, tmp_path)
+    args = argparse.Namespace(
+        provider_id="test",
+        base_url="",
+        api_key="sk-test",
+        model="",
+    )
+    with pytest.raises(SystemExit):
+        _cmd_claude_add(args)
+
+
+def test_cmd_claude_add_noninteractive_missing_api_key(monkeypatch, tmp_path) -> None:
+    _patch_paths(monkeypatch, tmp_path)
+    args = argparse.Namespace(
+        provider_id="test",
+        base_url="https://api.example.com",
+        api_key="",
+        model="",
+    )
+    with pytest.raises(SystemExit):
+        _cmd_claude_add(args)
+
+
+def test_cmd_claude_add_interactive(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    prompts = iter(["my-claude", "https://test.com", "sk-claude-key", "deepseek-v4-flash"])
+    monkeypatch.setattr("builtins.input", lambda _="": next(prompts))
+    monkeypatch.setattr("getpass.getpass", lambda _="": next(prompts))
+
+    args = argparse.Namespace(
+        provider_id=None,
+        base_url=None,
+        api_key=None,
+        model=None,
+    )
+    assert _cmd_claude_add(args) == 0
+    target = paths["claude_provider_dir"] / "my-claude.toml"
+    assert target.exists()
+    doc = tomlkit.parse(target.read_text(encoding="utf-8"))
+    assert doc["env"]["ANTHROPIC_BASE_URL"] == "https://test.com"
+
+
+# ── claude rename ───────────────────────────────────────────────────
+
+
+def test_cmd_claude_rename_renames(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    old = paths["claude_provider_dir"] / "old.toml"
+    new = paths["claude_provider_dir"] / "new.toml"
+    old.write_text('[env]\nANTHROPIC_BASE_URL = "https://example.com"\n', encoding="utf-8")
+    assert _cmd_claude_rename("old", "new") == 0
+    assert not old.exists()
+    assert new.exists()
+
+
+def test_cmd_claude_rename_not_found(monkeypatch, tmp_path) -> None:
+    _patch_paths(monkeypatch, tmp_path)
+    with pytest.raises(SystemExit):
+        _cmd_claude_rename("nonexistent", "new")
+
+
+def test_cmd_claude_rename_target_exists(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    (paths["claude_provider_dir"] / "old.toml").write_text('[env]\nA="x"\n', encoding="utf-8")
+    (paths["claude_provider_dir"] / "new.toml").write_text('[env]\nA="y"\n', encoding="utf-8")
+    with pytest.raises(SystemExit):
+        _cmd_claude_rename("old", "new")
+
+
+# ── claude edit guard ───────────────────────────────────────────────
+
+
+def test_cmd_claude_edit_empty_token_aborts(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    monkeypatch.setenv("EDITOR", "true")
+    monkeypatch.setattr("subprocess.call", lambda _: 0)
+    target = paths["claude_provider_dir"] / "empty-key.toml"
+    target.write_text(
+        '[env]\nANTHROPIC_BASE_URL = "https://example.com"\nANTHROPIC_AUTH_TOKEN = ""\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("cxf.cli._cmd_claude_use", lambda provider_id: 0)
+    assert _cmd_claude_edit("empty-key") == 1
+
+
+def test_cmd_claude_edit_with_token_passes(monkeypatch, tmp_path) -> None:
+    paths = _patch_paths(monkeypatch, tmp_path)
+    monkeypatch.setenv("EDITOR", "true")
+    monkeypatch.setattr("subprocess.call", lambda _: 0)
+    target = paths["claude_provider_dir"] / "good.toml"
+    target.write_text(
+        '[env]\nANTHROPIC_BASE_URL = "https://example.com"\nANTHROPIC_AUTH_TOKEN = "sk-real"\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("cxf.cli._cmd_claude_use", lambda provider_id: 0)
+    assert _cmd_claude_edit("good") == 0

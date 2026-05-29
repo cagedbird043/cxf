@@ -80,6 +80,10 @@ _I18N: dict[str, tuple[str, str]] = {
         "Open a Claude provider in $EDITOR",
         "编辑 Claude provider",
     ),
+    "help.claude_add": (
+        "Add a Claude provider",
+        "添加 Claude provider",
+    ),
     "help.claude_remove": (
         "Remove a managed Claude provider",
         "删除 Claude provider",
@@ -87,6 +91,14 @@ _I18N: dict[str, tuple[str, str]] = {
     "help.claude_status": (
         "Check whether cxf controls Claude settings",
         "检查 cxf 是否管控 Claude 设置",
+    ),
+    "help.rename": (
+        "Rename a provider",
+        "重命名 provider",
+    ),
+    "help.claude_rename": (
+        "Rename a Claude provider",
+        "重命名 Claude provider",
     ),
     # -- argument help --
     "arg.name": (
@@ -124,6 +136,30 @@ _I18N: dict[str, tuple[str, str]] = {
     "arg.add.no_websocket": (
         "Disable WebSocket support",
         "禁用 WebSocket",
+    ),
+    "arg.rename.old": (
+        "Current provider id",
+        "当前 provider 名称",
+    ),
+    "arg.rename.new": (
+        "New provider id",
+        "新 provider 名称",
+    ),
+    "arg.claude_add.provider_id": (
+        "Provider id (interactive if omitted)",
+        "Provider 名称（省略则交互式输入）",
+    ),
+    "arg.claude_add.base_url": (
+        "Anthropic-compatible base URL",
+        "Anthropic 兼容 API 地址",
+    ),
+    "arg.claude_add.api_key": (
+        "Anthropic API key",
+        "Anthropic API 密钥",
+    ),
+    "arg.claude_add.model": (
+        "Model name",
+        "模型名称",
     ),
     # -- output labels (config keys, always in English) --
     "lbl.provider": ("provider", "provider"),
@@ -203,6 +239,22 @@ _I18N: dict[str, tuple[str, str]] = {
         "provider id is required",
         "必须指定 provider 名称",
     ),
+    "p.claude_provider_id": (
+        "provider id",
+        "provider 名称",
+    ),
+    "p.claude_base_url": (
+        "ANTHROPIC_BASE_URL",
+        "API 地址",
+    ),
+    "p.claude_api_key": (
+        "ANTHROPIC_AUTH_TOKEN",
+        "API 密钥",
+    ),
+    "p.claude_model": (
+        "ANTHROPIC_MODEL",
+        "模型名称",
+    ),
     # -- messages (always English) --
     "msg.initialized": ("initialized: {}", "initialized: {}"),
     "msg.provider_line": ("provider: {} -> {} {}", "provider: {} -> {} {}"),
@@ -212,6 +264,7 @@ _I18N: dict[str, tuple[str, str]] = {
     "msg.claude_provider_line": ("claude provider: {} -> {} {}", "claude provider: {} -> {} {}"),
     "msg.removed": ("removed: {}", "removed: {}"),
     "msg.created": ("created: {}", "created: {}"),
+    "msg.renamed": ("renamed: {} -> {}", "renamed: {} -> {}"),
     # -- errors --
     "err.not_found": (
         "provider not found: {}",
@@ -252,6 +305,34 @@ _I18N: dict[str, tuple[str, str]] = {
     "err.edit.no_api_key": (
         "api_key is empty in provider '{}'. Aborting apply.",
         "provider '{}' 的 api_key 为空，已中止切换。",
+    ),
+    "err.claude_edit.no_key": (
+        "ANTHROPIC_AUTH_TOKEN is empty in claude provider '{}'. Aborting apply.",
+        "Claude provider '{}' 的 ANTHROPIC_AUTH_TOKEN 为空，已中止切换。",
+    ),
+    "err.rename.not_found": (
+        "provider not found: {}",
+        "provider 不存在: {}",
+    ),
+    "err.rename.exists": (
+        "provider already exists: {}",
+        "provider 已存在: {}",
+    ),
+    "err.claude_rename.not_found": (
+        "claude provider not found: {}",
+        "Claude provider 不存在: {}",
+    ),
+    "err.claude_rename.exists": (
+        "claude provider already exists: {}",
+        "Claude provider 已存在: {}",
+    ),
+    "err.claude_add.no_base_url": (
+        "base_url is required in non-interactive mode",
+        "非交互模式下必须指定 base_url",
+    ),
+    "err.claude_add.no_api_key": (
+        "api_key is required in non-interactive mode",
+        "非交互模式下必须指定 api_key",
     ),
     # -- generic utility strings --
     "yes": ("yes", "是"),

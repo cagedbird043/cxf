@@ -24,7 +24,7 @@ _cxf_claude_provider_ids() {
 
 _cxf_cmd_descriptions() {
   local -a _cmds
-  if [[ $LANG = zh_* ]]; then
+    if [[ $LANG = zh_* ]]; then
     _cmds=(
       'init:从当前配置初始化托管 provider'
       'list:列出所有托管 provider'
@@ -33,6 +33,7 @@ _cxf_cmd_descriptions() {
       'add:添加 provider'
       'edit:编辑 provider'
       'remove:删除 provider'
+      'rename:重命名 provider'
       'status:检查 cxf 是否管控当前 provider'
       'claude:管理 Claude Code provider 指针'
     )
@@ -45,6 +46,7 @@ _cxf_cmd_descriptions() {
       'add:add a provider'
       'edit:open a provider in $EDITOR'
       'remove:remove a managed provider'
+      'rename:rename a provider'
       'status:check whether cxf controls the active provider'
       'claude:manage Claude Code provider pointer'
     )
@@ -59,9 +61,11 @@ _cxf_claude_descriptions() {
       'init:从当前设置初始化 Claude provider'
       'list:列出所有托管 Claude provider'
       'current:显示当前激活的 Claude provider'
+      'add:添加 Claude provider'
       'edit:编辑 Claude provider'
       'use:切换 Claude Code 到指定 provider'
       'remove:删除 Claude provider'
+      'rename:重命名 Claude provider'
       'status:检查 cxf 是否管控 Claude 设置'
     )
   else
@@ -69,9 +73,11 @@ _cxf_claude_descriptions() {
       'init:initialize Claude providers from current settings'
       'list:list managed Claude providers'
       'current:show active Claude provider'
+      'add:add a Claude provider'
       'edit:open a Claude provider in $EDITOR'
       'use:switch Claude Code to a managed provider'
       'remove:remove a managed Claude provider'
+      'rename:rename a Claude provider'
       'status:check whether cxf controls Claude settings'
     )
   fi
@@ -93,7 +99,7 @@ _cxf() {
       (( CURRENT > 3 )) && return
       _message 'provider id'
       ;;
-    use|edit|remove)
+    use|edit|remove|rename)
       (( CURRENT > 3 )) && return
       _cxf_provider_ids
       ;;
@@ -121,10 +127,24 @@ _cxf() {
     claude)
       if (( CURRENT == 3 )); then
         _cxf_claude_descriptions
-      elif (( CURRENT == 4 )) && [[ "$words[3]" == (use|edit|remove) ]]; then
+      elif (( CURRENT == 4 )) && [[ "$words[3]" == (use|edit|remove|rename) ]]; then
         _cxf_claude_provider_ids
       elif (( CURRENT == 4 )) && [[ "$words[3]" == init ]]; then
         _message 'provider id'
+      elif (( CURRENT == 4 )) && [[ "$words[3]" == add ]]; then
+        if [[ $LANG = zh_* ]]; then
+          _arguments \
+            '--provider-id[Provider 名称，省略则交互式输入]' \
+            '--base-url[Anthropic 兼容 API 地址]' \
+            '--api-key[Anthropic API 密钥]' \
+            '--model[模型名称]'
+        else
+          _arguments \
+            '--provider-id[provider id (interactive if omitted)]' \
+            '--base-url[Anthropic-compatible base URL]' \
+            '--api-key[Anthropic API key]' \
+            '--model[model name]'
+        fi
       fi
       ;;
     list|current|status)
