@@ -8,14 +8,6 @@ _cxf_provider_ids() {
   _describe -t providers 'provider' providers
 }
 
-_cxf_snapshots() {
-  local snapshot_dir="${HOME}/.codex/cxf/snapshots"
-  [[ -d "$snapshot_dir" ]] || return
-  local -a snapshots
-  snapshots=("${snapshot_dir}"/*(N:t))
-  _describe -t snapshots 'snapshot' snapshots
-}
-
 _cxf_claude_provider_ids() {
   local provider_dir="${HOME}/.codex/cxf/claude/providers"
   [[ -d "$provider_dir" ]] || return
@@ -30,16 +22,14 @@ _cxf() {
   local -a commands
 
   commands=(
-    'init:initialize ~/.codex/cxf from existing Codex providers'
-    'add:interactively add a provider'
+    'init:initialize managed providers from current config'
     'list:list managed providers'
-    'current:show current provider pointer'
-    'edit:open provider file in $EDITOR'
-    'use:switch Codex provider pointer'
-    'doctor:check whether provider pointer is controlled'
-    'snapshot:snapshot Codex and cxf config files'
-    'restore:restore a snapshot'
-    'completion:print shell completion'
+    'current:show active provider'
+    'use:switch to a managed provider'
+    'add:add a provider'
+    'edit:open a provider in $EDITOR'
+    'remove:remove a managed provider'
+    'status:check whether cxf controls the active provider'
     'claude:manage Claude Code provider pointer'
   )
 
@@ -57,43 +47,54 @@ _cxf() {
           (( CURRENT > 3 )) && return 1
           _message 'provider id'
           ;;
-        use|edit)
+        use|edit|remove)
           (( CURRENT > 3 )) && return 1
           [[ -n "$words[3]" && -f "${HOME}/.codex/cxf/providers/${words[3]}.toml" ]] && return 1
           _cxf_provider_ids
           ;;
-        restore)
-          (( CURRENT > 3 )) && return 1
-          [[ -n "$words[3]" && -d "${HOME}/.codex/cxf/snapshots/${words[3]}" ]] && return 1
-          _cxf_snapshots
-          ;;
-        completion)
-          (( CURRENT > 3 )) && return 1
-          [[ "$words[3]" == "zsh" ]] && return 1
-          _values 'shell' zsh
+        add)
+          if (( CURRENT > 3 )); then
+            # suggest flags
+            _arguments \
+              '--provider-id[provider id]' \
+              '--model-providers[model provider name]' \
+              '--base-url[API base URL]' \
+              '--api-key[API key]' \
+              '--wire-api[API wire format]:wire:(responses chat)' \
+              '--no-websocket[disable WebSocket]'
+          fi
           ;;
         claude)
           local -a claude_commands
           claude_commands=(
-            'init:initialize Claude provider profiles'
-            'list:list Claude providers'
-            'current:show current Claude provider pointer'
-            'edit:open Claude provider file in $EDITOR'
-            'use:switch Claude provider pointer'
-            'doctor:check whether Claude provider pointer is controlled'
+            'init:initialize Claude providers from current settings'
+            'list:list managed Claude providers'
+            'current:show active Claude provider'
+            'edit:open a Claude provider in $EDITOR'
+            'use:switch Claude Code to a managed provider'
+            'remove:remove a managed Claude provider'
+            'status:check whether cxf controls Claude settings'
           )
           if (( CURRENT == 3 )); then
             _describe -t claude-commands 'claude command' claude_commands
-          elif [[ "$words[3]" == (use|edit) ]]; then
+          elif [[ "$words[3]" == (use|edit|remove) ]]; then
             [[ -n "$words[4]" && -f "${HOME}/.codex/cxf/claude/providers/${words[4]}.toml" ]] && return 1
             _cxf_claude_provider_ids
+          elif [[ "$words[3]" == add ]]; then
+            _arguments \
+              '--provider-id[provider id]' \
+              '--model-providers[model provider name]' \
+              '--base-url[API base URL]' \
+              '--api-key[API key]' \
+              '--wire-api[API wire format]:wire:(responses chat)' \
+              '--no-websocket[disable WebSocket]'
           elif [[ "$words[3]" == init ]]; then
             _message 'provider id'
           else
             return 1
           fi
           ;;
-        add|list|current|doctor|snapshot)
+        list|current|status)
           return 1
           ;;
       esac
