@@ -141,13 +141,6 @@ cxf 只操作以下 Codex 配置字段：
 
 其他所有 Codex 配置保持不动。
 
-## 安全模型
-
-- 所有含 API key 的文件写入后自动 `chmod(0o600)`
-- `cxf add` 非交互模式下，`--api-key` 为空会直接报错
-- `cxf edit` 编辑后若 api_key 仍为空，拒绝切换并告警
-- `auth.json` 写入时合并已有字段，不会覆盖其他 key
-
 ## 架构
 
 cxf 分为 6 个模块：
