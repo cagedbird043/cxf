@@ -99,7 +99,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     # claude subcommand group
     claude_p = sub.add_parser("claude", help=_("help.claude"))
-    claude_sub = claude_p.add_subparsers(dest="claude_command", required=True)
+    claude_sub = claude_p.add_subparsers(dest="claude_command")
 
     claude_init = claude_sub.add_parser("init", help=_("help.claude_init"))
     claude_init.add_argument("name", nargs="?", help=_("arg.name"))
@@ -473,6 +473,16 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "claude":
+        if not args.claude_command:
+            # show claude subcommand help
+            parser = build_parser()
+            # access the claude subparser via argparse internals
+            actions = [a for a in parser._actions if hasattr(a, "choices") and a.choices]
+            for action in actions:
+                if "claude" in action.choices:
+                    action.choices["claude"].print_help()
+                    break
+            return 0
         handler = _CLAUDE_COMMANDS.get(args.claude_command)
         if handler is None:
             _error("err.unknown_claude_command", args.claude_command)
