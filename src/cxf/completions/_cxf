@@ -3,7 +3,7 @@
 # ── helpers ────────────────────────────────────────────────────────────
 
 _cxf_provider_ids() {
-  local provider_dir="${HOME}/.codex/cxf/providers"
+  local provider_dir="${XDG_CONFIG_HOME:-$HOME/.config}/cxf/providers"
   [[ -d "$provider_dir" ]] || return
   local -a providers
   providers=("${provider_dir}"/*.toml(N:t:r))
@@ -11,7 +11,7 @@ _cxf_provider_ids() {
 }
 
 _cxf_claude_provider_ids() {
-  local provider_dir="${HOME}/.codex/cxf/claude/providers"
+  local provider_dir="${XDG_CONFIG_HOME:-$HOME/.config}/cxf/claude/providers"
   [[ -d "$provider_dir" ]] || return
   local -a providers
   providers=("${provider_dir}"/*.toml(N:t:r))

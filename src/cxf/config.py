@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -8,17 +9,28 @@ import tomlkit
 
 # ── paths ──────────────────────────────────────────────────────────────
 
-CODEX_HOME = Path.home() / ".codex"
-CXF_HOME = CODEX_HOME / "cxf"
+# cxf's own config & state (XDG Base Directory Specification)
+_CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+_STATE_HOME = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+
+CXF_HOME = _CONFIG_HOME / "cxf"
 PROVIDERS_DIR = CXF_HOME / "providers"
-SNAPSHOTS_DIR = CXF_HOME / "snapshots"
 BASE_PATH = CXF_HOME / "base.toml"
-CODEX_CONFIG_PATH = CODEX_HOME / "config.toml"
-AUTH_PATH = CODEX_HOME / "auth.json"
-CLAUDE_HOME = Path.home() / ".claude"
-CLAUDE_SETTINGS_PATH = CLAUDE_HOME / "settings.json"
 CLAUDE_CXF_HOME = CXF_HOME / "claude"
 CLAUDE_PROVIDERS_DIR = CLAUDE_CXF_HOME / "providers"
+
+CXF_STATE_HOME = _STATE_HOME / "cxf"
+SNAPSHOTS_DIR = CXF_STATE_HOME / "snapshots"
+
+# Codex's own config (belongs to Codex, not cxf)
+CODEX_HOME = Path.home() / ".codex"
+CODEX_CONFIG_PATH = CODEX_HOME / "config.toml"
+AUTH_PATH = CODEX_HOME / "auth.json"
+
+# Claude Code's own config (belongs to Claude Code, not cxf)
+CLAUDE_HOME = Path.home() / ".claude"
+CLAUDE_SETTINGS_PATH = CLAUDE_HOME / "settings.json"
+
 CLAUDE_PROVIDER_ENV = "CXF_CLAUDE_PROVIDER"
 
 # ── base keys ──────────────────────────────────────────────────────────

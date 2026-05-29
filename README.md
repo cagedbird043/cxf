@@ -120,15 +120,19 @@ cxf claude status
 ## 文件布局
 
 ```
-~/.codex/cxf/
-├── base.toml          # 默认 model/review_model 设置
-├── providers/         # 每个 provider 一个 .toml 文件
+~/.config/cxf/                     # XDG_CONFIG_HOME → cxf 自身配置
+├── base.toml                      # 默认 model/review_model 设置
+├── providers/                     # 每个 provider 一个 .toml 文件
 │   ├── openai.toml
 │   └── ...
 └── claude/
-    └── providers/     # Claude provider 定义
+    └── providers/                 # Claude provider 定义
         ├── deepseek.toml
         └── ...
+
+~/.local/state/cxf/                # XDG_STATE_HOME → cxf 运行状态
+└── snapshots/                     # 切换前自动备份
+    └── ...
 ```
 
 cxf 只操作以下 Codex 配置字段：

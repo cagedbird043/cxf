@@ -55,9 +55,12 @@ def _patch_paths(monkeypatch, tmp_path) -> dict:
 
     Returns a dict of paths so tests can set up specific files.
     """
-    cxf_home = tmp_path / "cxf"
+    config_home = tmp_path / "config"
+    state_home = tmp_path / "state"
+    cxf_home = config_home / "cxf"
+    cxf_state_home = state_home / "cxf"
     provider_dir = cxf_home / "providers"
-    snapshots_dir = cxf_home / "snapshots"
+    snapshots_dir = cxf_state_home / "snapshots"
     base_path = cxf_home / "base.toml"
     config_path = tmp_path / "config.toml"
     auth_path = tmp_path / "auth.json"
@@ -67,6 +70,7 @@ def _patch_paths(monkeypatch, tmp_path) -> dict:
 
     # -- config (source of truth) --
     monkeypatch.setattr("cxf.config.CXF_HOME", cxf_home)
+    monkeypatch.setattr("cxf.config.CXF_STATE_HOME", cxf_state_home)
     monkeypatch.setattr("cxf.config.PROVIDERS_DIR", provider_dir)
     monkeypatch.setattr("cxf.config.SNAPSHOTS_DIR", snapshots_dir)
     monkeypatch.setattr("cxf.config.BASE_PATH", base_path)

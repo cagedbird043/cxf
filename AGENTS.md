@@ -27,9 +27,10 @@ ux.py       — i18n（`_()` 函数，60+ 翻译键）、Rich 输出面板、dif
 
 | 路径 | 说明 |
 |------|------|
-| `~/.codex/cxf/base.toml` | 默认 model/review_model 设置 |
-| `~/.codex/cxf/providers/` | 每个 provider 一个 .toml 文件 |
-| `~/.codex/cxf/claude/providers/` | Claude provider .toml 文件 |
+| `~/.config/cxf/base.toml` | 默认 model/review_model 设置（XDG_CONFIG_HOME） |
+| `~/.config/cxf/providers/` | 每个 provider 一个 .toml 文件 |
+| `~/.config/cxf/claude/providers/` | Claude provider .toml 文件 |
+| `~/.local/state/cxf/snapshots/` | 切换前自动备份（XDG_STATE_HOME） |
 | `~/.codex/config.toml` | Codex 主配置（cxf 会注入 `# cxf: provider = <name>` 标记） |
 | `~/.codex/auth.json` | API key 存储 |
 | `~/.claude/settings.json` | Claude Code 配置（cxf 只改 `env` 块） |
