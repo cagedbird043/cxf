@@ -56,7 +56,7 @@ cxf add --provider-id openrouter \
 cxf status
 ```
 
-## Claude Code 双栈支持
+## Claude Code 支持
 
 `cxf claude` 子命令管理 Claude Code provider 的环境变量，零侵入——只改 `~/.claude/settings.json` 的 `env` 块。
 
