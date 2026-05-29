@@ -218,6 +218,8 @@ def _cmd_current() -> int:
     ws_val = provider_table.get("supports_websockets", "") if _is_table_like(provider_table) else ""
     auth_controlled = bool(provider and auth.get("OPENAI_API_KEY") == provider.api_key)
 
+    cw = config.get("model_context_window", "")
+    ac = config.get("model_auto_compact_token_limit", "")
     print_current_panel(
         provider_id=provider_id or "-",
         model_provider=model_provider or "-",
@@ -226,6 +228,8 @@ def _cmd_current() -> int:
         base_url=base_url or "-",
         websocket=_format_bool(ws_val),
         auth=_("lbl.controlled") if auth_controlled else _("lbl.unknown"),
+        context_window=str(cw) if cw else "-",
+        auto_compact=str(ac) if ac else "-",
     )
     return 0
 

@@ -184,6 +184,8 @@ _I18N: dict[str, tuple[str, str]] = {
     "lbl.subagent": ("subagent", "subagent"),
     "lbl.controlled": ("controlled", "controlled"),
     "lbl.unknown": ("unknown", "unknown"),
+    "lbl.context_window": ("context_window", "context_window"),
+    "lbl.auto_compact": ("auto_compact", "auto_compact"),
     # -- bool labels (config values, always in English) --
     "bool.on": ("on", "on"),
     "bool.off": ("off", "off"),
@@ -486,6 +488,8 @@ def print_current_panel(
     base_url: str,
     websocket: str,
     auth: str,
+    context_window: str = "-",
+    auto_compact: str = "-",
 ) -> None:
     """Print current provider status as a rich panel."""
     from rich.table import Table as GridTable
@@ -503,6 +507,8 @@ def print_current_panel(
     row("lbl.review_model", review_model)
     row("lbl.base_url", base_url)
     row("lbl.websocket", websocket)
+    row("lbl.context_window", context_window)
+    row("lbl.auto_compact", auto_compact)
     row("lbl.auth", auth)
     console.print(Panel(grid, title="current", border_style="blue"))
 
