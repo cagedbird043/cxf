@@ -626,6 +626,8 @@ def test_cmd_add_noninteractive(monkeypatch, tmp_path) -> None:
         api_key="sk-valid",
         wire_api="responses",
         no_websocket=False,
+        context_window=None,
+        auto_compact=None,
     )
     assert _cmd_add(args) == 0
     target = paths["provider_dir"] / "test-provider.toml"
@@ -647,6 +649,8 @@ def test_cmd_add_noninteractive_missing_base_url(monkeypatch, tmp_path) -> None:
         api_key="sk-key",
         wire_api=None,
         no_websocket=False,
+        context_window=None,
+        auto_compact=None,
     )
     with pytest.raises(SystemExit):
         _cmd_add(args)
@@ -661,6 +665,8 @@ def test_cmd_add_noninteractive_missing_api_key(monkeypatch, tmp_path) -> None:
         api_key="",
         wire_api=None,
         no_websocket=False,
+        context_window=None,
+        auto_compact=None,
     )
     with pytest.raises(SystemExit):
         _cmd_add(args)
@@ -682,6 +688,8 @@ def test_cmd_add_interactive(monkeypatch, tmp_path) -> None:
         api_key=None,
         wire_api=None,
         no_websocket=False,
+        context_window=None,
+        auto_compact=None,
     )
     assert _cmd_add(args) == 0
     target = paths["provider_dir"] / "my-provider.toml"

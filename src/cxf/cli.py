@@ -96,6 +96,8 @@ def build_parser() -> argparse.ArgumentParser:
     add_p.add_argument("--api-key", help=_("arg.add.api_key"))
     add_p.add_argument("--wire-api", choices=("responses", "chat"), default=None, help=_("arg.add.wire_api"))
     add_p.add_argument("--no-websocket", action="store_true", help=_("arg.add.no_websocket"))
+    add_p.add_argument("--context-window", type=int, default=None, help=_("arg.add.context_window"))
+    add_p.add_argument("--auto-compact", type=int, default=None, help=_("arg.add.auto_compact"))
 
     # edit
     edit_p = sub.add_parser("edit", help=_("help.edit"))
@@ -288,6 +290,8 @@ def _cmd_add(args: argparse.Namespace) -> int:
         wire_api=wire_api,
         requires_openai_auth=True,
         websocket=websocket,
+        context_window=args.context_window if args.provider_id else None,
+        auto_compact_token_limit=args.auto_compact if args.provider_id else None,
     )
     _write_provider(provider)
     print(_("msg.created", provider.path))

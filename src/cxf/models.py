@@ -17,6 +17,8 @@ class Provider:
     wire_api: str
     requires_openai_auth: bool
     websocket: bool
+    context_window: int | None = None
+    auto_compact_token_limit: int | None = None
 
     @property
     def path(self) -> Path:

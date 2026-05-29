@@ -137,6 +137,14 @@ _I18N: dict[str, tuple[str, str]] = {
         "Disable WebSocket support",
         "禁用 WebSocket",
     ),
+    "arg.add.context_window": (
+        "Context window size (e.g. 1000000 for 1M)",
+        "上下文窗口大小（如 1000000 表示 1M）",
+    ),
+    "arg.add.auto_compact": (
+        "Auto-compact token limit",
+        "自动压缩的 token 阈值",
+    ),
     "arg.rename.old": (
         "Current provider id",
         "当前 provider 名称",

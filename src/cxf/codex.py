@@ -65,7 +65,20 @@ def _load_provider(provider_id: str) -> Provider:
         wire_api=str(doc.get("wire_api", "responses")),
         requires_openai_auth=bool(doc.get("requires_openai_auth", True)),
         websocket=bool(doc.get("websocket", True)),
+        context_window=_optional_int(doc.get("context_window")),
+        auto_compact_token_limit=_optional_int(doc.get("auto_compact_token_limit")),
     )
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float, str)):
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+    return None
 
 
 def _provider_ids() -> list[str]:
@@ -92,6 +105,10 @@ def _provider_doc(provider: Provider) -> Any:
     doc.add("wire_api", provider.wire_api)
     doc.add("requires_openai_auth", provider.requires_openai_auth)
     doc.add("websocket", provider.websocket)
+    if provider.context_window is not None:
+        doc.add("context_window", provider.context_window)
+    if provider.auto_compact_token_limit is not None:
+        doc.add("auto_compact_token_limit", provider.auto_compact_token_limit)
     return doc
 
 
@@ -167,6 +184,11 @@ def _apply_provider(config: Any, base: Any, provider: Provider) -> Any:
     for key in BASE_KEYS:
         if key in base:
             config[key] = base[key]
+    # per-provider overrides for context window
+    if provider.context_window is not None:
+        config["model_context_window"] = provider.context_window
+    if provider.auto_compact_token_limit is not None:
+        config["model_auto_compact_token_limit"] = provider.auto_compact_token_limit
 
     model_providers = _set_table(config, "model_providers")
     managed_names = _managed_model_provider_names()
