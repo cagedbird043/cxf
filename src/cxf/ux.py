@@ -120,55 +120,24 @@ _I18N: dict[str, tuple[str, str]] = {
         "Disable WebSocket support",
         "禁用 WebSocket",
     ),
-    # -- output labels --
-    "lbl.provider": (
-        "provider",
-        "provider",
-    ),
-    "lbl.model_provider": (
-        "model_provider",
-        "模型提供商",
-    ),
-    "lbl.model": (
-        "model",
-        "模型",
-    ),
-    "lbl.review_model": (
-        "review_model",
-        "审阅模型",
-    ),
-    "lbl.base_url": (
-        "base_url",
-        "地址",
-    ),
-    "lbl.websocket": (
-        "websocket",
-        "连接方式",
-    ),
-    "lbl.auth": (
-        "auth",
-        "密钥",
-    ),
-    "lbl.claude_provider": (
-        "claude_provider",
-        "Claude provider",
-    ),
-    "lbl.model_opus": (
-        "opus",
-        "Opus 模型",
-    ),
-    "lbl.model_sonnet": (
-        "sonnet",
-        "Sonnet 模型",
-    ),
-    "lbl.model_haiku": (
-        "haiku",
-        "Haiku 模型",
-    ),
-    "lbl.subagent": (
-        "subagent",
-        "子 agent 模型",
-    ),
+    # -- output labels (config keys, always in English) --
+    "lbl.provider": ("provider", "provider"),
+    "lbl.model_provider": ("model_provider", "model_provider"),
+    "lbl.model": ("model", "model"),
+    "lbl.review_model": ("review_model", "review_model"),
+    "lbl.base_url": ("base_url", "base_url"),
+    "lbl.websocket": ("websocket", "websocket"),
+    "lbl.auth": ("auth", "auth"),
+    "lbl.claude_provider": ("claude_provider", "claude_provider"),
+    "lbl.model_opus": ("opus", "opus"),
+    "lbl.model_sonnet": ("sonnet", "sonnet"),
+    "lbl.model_haiku": ("haiku", "haiku"),
+    "lbl.subagent": ("subagent", "subagent"),
+    "lbl.controlled": ("controlled", "controlled"),
+    "lbl.unknown": ("unknown", "unknown"),
+    # -- bool labels (config values, always in English) --
+    "bool.on": ("on", "on"),
+    "bool.off": ("off", "off"),
     # -- status output --
     "status.controlled_yes": (
         "controlled: yes",
@@ -321,13 +290,9 @@ _I18N: dict[str, tuple[str, str]] = {
         "unexpected argument: {}",
         "意外的参数: {}",
     ),
-    # -- bool labels (used by _format_bool) --
-    "bool.on": ("on", "开"),
-    "bool.off": ("off", "关"),
+    # -- generic utility strings --
     "yes": ("yes", "是"),
     "no": ("no", "否"),
-    "lbl.controlled": ("controlled", "已管控"),
-    "lbl.unknown": ("unknown", "未知"),
 }
 
 
