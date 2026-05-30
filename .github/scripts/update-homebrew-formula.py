@@ -32,7 +32,9 @@ for url_suffix, new_sha in platforms:
             new = f'sha256 "{new_sha}"'
             content = content.replace(old_sha, new, 1)
 
-# Update completion resource SHA
+# Update completion resource URL + SHA
+resource_url_pattern = r'(releases/download/)v[^/]+(_cxf")'
+content = re.sub(resource_url_pattern, rf'\g<1>v{version}\g<2>', content)
 if sha_completion:
     resource_match = re.search(r'resource "completion"', content)
     if resource_match:
