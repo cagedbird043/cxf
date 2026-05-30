@@ -201,6 +201,7 @@ pub fn take_snapshot(source: &Path, prefix: &str, provider: &str, ext: &str) -> 
     fs::create_dir_all(snapshots_dir()).context("create snapshots dir")?;
     let safe = provider.replace(['/', '\\'], "_");
     let target = snapshots_dir().join(format!("{prefix}-{safe}.{ext}"));
-    fs::copy(source, target).context("write snapshot")?;
+    fs::copy(source, &target).context("write snapshot")?;
+    chmod_600(&target)?;
     Ok(())
 }
