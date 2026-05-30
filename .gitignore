@@ -1,12 +1,2 @@
-__pycache__/
-.pytest_cache/
-*.pyc
-dist/
-build/
-*.egg-info/
-.venv/
-.zcompdump*
-.coverage*
-coverage.xml
-htmlcov/
 /target/
+.zcompdump*
