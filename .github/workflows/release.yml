@@ -16,10 +16,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release
       - run: cp target/release/cxf cxf-linux-amd64
+      - run: ./target/release/cxf completion > _cxf
       - uses: actions/upload-artifact@v4
         with:
           name: cxf-linux-amd64
           path: cxf-linux-amd64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cxf-zsh-completion
+          path: _cxf
 
   build-macos:
     runs-on: macos-14
@@ -42,13 +47,18 @@ jobs:
           pattern: cxf-*
           merge-multiple: true
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: cxf-zsh-completion
+
       - name: Checksums
-        run: sha256sum cxf-* > checksums.txt
+        run: sha256sum cxf-* _cxf > checksums.txt
 
       - uses: softprops/action-gh-release@v1
         with:
           files: |
             cxf-*
+            _cxf
             checksums.txt
           generate_release_notes: true
 
@@ -66,11 +76,16 @@ jobs:
           pattern: cxf-*
           merge-multiple: true
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: cxf-zsh-completion
+
       - name: Compute SHA256
         id: shas
         run: |
           echo "linux_sha=$(sha256sum cxf-linux-amd64 | cut -d' ' -f1)" >> "$GITHUB_ENV"
           echo "darwin_arm_sha=$(sha256sum cxf-darwin-arm64 | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "completion_sha=$(sha256sum _cxf | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4
         with:
@@ -84,7 +99,8 @@ jobs:
           python3 "$GITHUB_WORKSPACE/cxf-repo/.github/scripts/update-homebrew-formula.py" \
             homebrew-tap/Formula/cxf.rb "$VERSION" \
             "${{ env.linux_sha }}" \
-            "${{ env.darwin_arm_sha }}"
+            "${{ env.darwin_arm_sha }}" \
+            "${{ env.completion_sha }}"
           cd homebrew-tap
           git add Formula/cxf.rb
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \

@@ -7,6 +7,7 @@ formula_path = sys.argv[1]
 version = sys.argv[2]
 sha_linux = sys.argv[3]
 sha_darwin_arm = sys.argv[4]
+sha_completion = sys.argv[5] if len(sys.argv) > 5 else ""
 
 with open(formula_path) as f:
     content = f.read()
@@ -14,7 +15,7 @@ with open(formula_path) as f:
 # Update version
 content = re.sub(r'version ".*"', f'version "{version}"', content)
 
-# Update sha256 based on URL patterns (sha256 line follows url line for each platform)
+# Update sha256 for binary platforms
 platforms = [
     ('cxf-darwin-arm64', sha_darwin_arm),
     ('cxf-linux-amd64', sha_linux),
@@ -30,6 +31,16 @@ for url_suffix, new_sha in platforms:
             old_sha = sha_line_match.group()
             new = f'sha256 "{new_sha}"'
             content = content.replace(old_sha, new, 1)
+
+# Update completion resource SHA
+if sha_completion:
+    resource_match = re.search(r'resource "completion"', content)
+    if resource_match:
+        after_resource = content[resource_match.end():]
+        sha_line_match = re.search(r'sha256 "[^"]*"', after_resource)
+        if sha_line_match:
+            old_sha = sha_line_match.group()
+            content = content.replace(old_sha, f'sha256 "{sha_completion}"', 1)
 
 with open(formula_path, 'w') as f:
     f.write(content)
