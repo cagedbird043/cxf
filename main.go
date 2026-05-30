@@ -261,7 +261,7 @@ var useCmd = &cobra.Command{
 			warn("configuration drift in: %s", strings.Join(drifted, ", "))
 			expected := renderProviderConfig(p)
 			current := extractManagedValues()
-			diffText := renderUnifiedDiff(expected, current)
+			diffText := renderUnifiedDiff(current, expected)
 			fmt.Println()
 			fmt.Println(diffText)
 			if !promptYesNo("overwrite?", false) {
@@ -584,7 +584,7 @@ var claudeUseCmd = &cobra.Command{
 			warn("configuration drift in: %s", strings.Join(drifted, ", "))
 			expected := renderClaudeProviderConfig(cp)
 			current := extractClaudeManagedValues()
-			diffText := renderUnifiedDiff(expected, current)
+			diffText := renderUnifiedDiff(current, expected)
 			fmt.Println()
 			fmt.Println(diffText)
 			if !promptYesNo("overwrite?", false) {
