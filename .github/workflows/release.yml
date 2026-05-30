@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target:
+          - os: linux
+            arch: amd64
+            rust_target: x86_64-unknown-linux-gnu
+          - os: darwin
+            arch: arm64
+            rust_target: aarch64-apple-darwin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target.rust_target }}
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target.rust_target }}
+
+      - name: Package
+        run: |
+          BINARY="cxf-${{ matrix.target.os }}-${{ matrix.target.arch }}"
+          cp "target/${{ matrix.target.rust_target }}/release/cxf" "$BINARY"
+          echo "binary=$BINARY" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cxf-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          path: cxf-${{ matrix.target.os }}-${{ matrix.target.arch }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cxf-*
+          merge-multiple: true
+
+      - name: Checksums
+        run: sha256sum cxf-* > checksums.txt
+
+      - uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            cxf-*
+            checksums.txt
+          generate_release_notes: true
