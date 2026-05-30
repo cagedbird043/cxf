@@ -51,3 +51,42 @@ jobs:
             cxf-*
             checksums.txt
           generate_release_notes: true
+
+  update-homebrew:
+    needs: [build-linux, build-macos]
+    runs-on: ubuntu-latest
+    if: github.repository == 'cagedbird043/cxf'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: cxf-repo
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cxf-*
+          merge-multiple: true
+
+      - name: Compute SHA256
+        id: shas
+        run: |
+          echo "linux_sha=$(sha256sum cxf-linux-amd64 | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "darwin_arm_sha=$(sha256sum cxf-darwin-arm64 | cut -d' ' -f1)" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: cagedbird043/homebrew-tap
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          python3 "$GITHUB_WORKSPACE/cxf-repo/.github/scripts/update-homebrew-formula.py" \
+            homebrew-tap/Formula/cxf.rb "$VERSION" \
+            "${{ env.linux_sha }}" \
+            "${{ env.darwin_arm_sha }}"
+          cd homebrew-tap
+          git add Formula/cxf.rb
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -m "cxf: update to v${VERSION}"
+          git push
