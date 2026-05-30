@@ -414,6 +414,23 @@ func applyProviderNew(p *Provider) error {
 	return writeAuth(p.APIKey)
 }
 
+// renderAuthDiff returns a string describing the api_key change in auth.json.
+func renderAuthDiff(p *Provider) string {
+	auth, err := readAuth()
+	if err != nil {
+		return ""
+	}
+	currentKey, _ := auth["OPENAI_API_KEY"].(string)
+	if currentKey == p.APIKey || currentKey == "" {
+		return ""
+	}
+	var buf strings.Builder
+	buf.WriteString("\n  ~/.codex/auth.json:\n")
+	buf.WriteString(fmt.Sprintf("  - api_key = %s (current)\n", formatTOMLValue(currentKey)))
+	buf.WriteString(fmt.Sprintf("  + api_key = %s (new)\n", formatTOMLValue(p.APIKey)))
+	return buf.String()
+}
+
 func extractManagedValues() string {
 	_, tree, err := readCodexConfigRaw()
 	if err != nil || tree == nil {
@@ -468,14 +485,6 @@ func extractManagedValues() string {
 		buf.WriteString(fmt.Sprintf("responses_websockets_v2 = %v\n", v))
 	} else {
 		buf.WriteString("responses_websockets_v2 = false\n")
-	}
-
-	// api_key from auth.json
-	auth, err := readAuth()
-	if err == nil {
-		if k, ok := auth["OPENAI_API_KEY"].(string); ok {
-			buf.WriteString(fmt.Sprintf("# api_key = %s\n", formatTOMLValue(k)))
-		}
 	}
 
 	return buf.String()

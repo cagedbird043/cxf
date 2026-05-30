@@ -262,8 +262,12 @@ var useCmd = &cobra.Command{
 			expected := renderProviderConfig(p)
 			current := extractManagedValues()
 			diffText := renderUnifiedDiff(current, expected)
+			authDiff := renderAuthDiff(p)
 			fmt.Println()
 			fmt.Println(diffText)
+			if authDiff != "" {
+				fmt.Println(authDiff)
+			}
 			if !promptYesNo("overwrite?", false) {
 				info("cancelled")
 				return nil
