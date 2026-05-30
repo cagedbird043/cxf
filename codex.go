@@ -470,6 +470,14 @@ func extractManagedValues() string {
 		buf.WriteString("responses_websockets_v2 = false\n")
 	}
 
+	// api_key from auth.json
+	auth, err := readAuth()
+	if err == nil {
+		if k, ok := auth["OPENAI_API_KEY"].(string); ok {
+			buf.WriteString(fmt.Sprintf("# api_key = %s\n", formatTOMLValue(k)))
+		}
+	}
+
 	return buf.String()
 }
 
