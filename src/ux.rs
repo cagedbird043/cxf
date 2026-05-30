@@ -99,8 +99,27 @@ pub fn prompt_bool(label: &str, default: bool) -> bool {
     )
 }
 
+fn visible_width(s: &str) -> usize {
+    let mut len = 0;
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c == '\x1b' {
+            // ANSI escape sequence: skip everything until the final letter
+            for c in chars.by_ref() {
+                if c.is_ascii_alphabetic() {
+                    break;
+                }
+            }
+        } else {
+            len += 1;
+        }
+    }
+    len
+}
+
 pub fn print_rows(headers: &[&str], rows: &[Vec<String>]) {
-    let mut widths: Vec<usize> = headers.iter().map(|h| h.len()).collect();
+    let styled: Vec<String> = headers.iter().map(bold).collect();
+    let mut widths: Vec<usize> = styled.iter().map(|h| visible_width(h)).collect();
     for row in rows {
         for (idx, cell) in row.iter().enumerate() {
             if idx < widths.len() {
@@ -108,14 +127,15 @@ pub fn print_rows(headers: &[&str], rows: &[Vec<String>]) {
             }
         }
     }
+    let gap = 2;
 
-    for (idx, header) in headers.iter().enumerate() {
-        print!("{:width$}  ", bold(header), width = widths[idx] + 9);
+    for (idx, header) in styled.iter().enumerate() {
+        print!("{header:width$}", width = widths[idx] + gap);
     }
     println!();
     for row in rows {
         for (idx, cell) in row.iter().enumerate() {
-            print!("{:width$}  ", cell, width = widths[idx] + 9);
+            print!("{cell:width$}", width = widths[idx] + gap);
         }
         println!();
     }
