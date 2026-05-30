@@ -6,15 +6,15 @@ use toml_edit::{DocumentMut, Item, table, value};
 
 use crate::{
     config::{
-        BASE_KEYS, auth_path, codex_config_path, ensure_layout, load_base, providers_dir,
-        read_auth, read_text, read_toml, take_snapshot, write_auth, write_default_base,
-        write_secret, write_toml,
+        BASE_KEYS, auth_path, base_path, codex_config_path, ensure_layout, load_base,
+        providers_dir, read_auth, read_text, read_toml, take_snapshot, write_auth,
+        write_default_base, write_secret, write_toml,
     },
     models::{
         PROBE_PREFIX, Provider, ensure_provider_id, get_bool, get_i64, get_str,
         provider_id_from_model_provider, provider_table_items,
     },
-    ux::{controlled_no, controlled_partial, controlled_yes, ok, print_diff},
+    ux::{controlled_no, controlled_partial, controlled_yes, ok, print_diff, yellow},
 };
 
 pub fn provider_ids() -> Result<Vec<String>> {
@@ -327,8 +327,19 @@ pub fn cmd_init(name: Option<&str>) -> Result<()> {
     Ok(())
 }
 
+fn warn_if_no_base() {
+    if !base_path().exists() {
+        eprintln!(
+            "{} warning: {} not found, run `cxf init` first",
+            yellow("!"),
+            base_path().display()
+        );
+    }
+}
+
 pub fn cmd_use(provider_id: &str) -> Result<()> {
     ensure_layout()?;
+    warn_if_no_base();
     let provider = load_provider(provider_id)?;
     let base = load_base()?;
     let config_path = codex_config_path();
@@ -369,6 +380,7 @@ pub fn cmd_use(provider_id: &str) -> Result<()> {
 }
 
 pub fn cmd_status() -> Result<i32> {
+    warn_if_no_base();
     let raw = read_text(&codex_config_path())?;
     let provider_id = read_provider_probe(&raw);
     if provider_id.is_empty() {
