@@ -10,13 +10,19 @@
 
 ## Install
 
+### Homebrew（推荐）
+
+```bash
+brew install cagedbird043/tap/cxf
+```
+
 ### Cargo
 
 ```bash
 cargo install --git https://github.com/cagedbird043/cxf.git
 ```
 
-### install.sh（推荐，含 zsh completion）
+### install.sh（含 zsh completion）
 
 ```bash
 git clone https://github.com/cagedbird043/cxf.git

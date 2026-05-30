@@ -7,7 +7,7 @@ cxf 是一个 Codex / Claude Code provider 切换工具。本文档给 AI agent 
 - **语言**：Rust 2024
 - **依赖**：`clap`, `toml_edit`, `serde_json`, `anyhow`
 - **测试**：`cargo test`，集成测试用临时 HOME / XDG 目录隔离真实配置
-- **安装**：`cargo install --git ...` 或 `./install.sh`（后者同时部署 zsh completion）
+- **安装**：`brew install cagedbird043/tap/cxf`、`cargo install --git ...` 或 `./install.sh`（后者同时部署 zsh completion）
 - **入口**：`src/main.rs` → `cli::run()`
 
 ## 架构
