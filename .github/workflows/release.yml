@@ -9,39 +9,32 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      matrix:
-        target:
-          - os: linux
-            arch: amd64
-            rust_target: x86_64-unknown-linux-gnu
-          - os: darwin
-            arch: arm64
-            rust_target: aarch64-apple-darwin
+  build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target.rust_target }}
-
-      - name: Build
-        run: cargo build --release --target ${{ matrix.target.rust_target }}
-
-      - name: Package
-        run: |
-          BINARY="cxf-${{ matrix.target.os }}-${{ matrix.target.arch }}"
-          cp "target/${{ matrix.target.rust_target }}/release/cxf" "$BINARY"
-          echo "binary=$BINARY" >> $GITHUB_ENV
-
+      - run: cargo build --release
+      - run: cp target/release/cxf cxf-linux-amd64
       - uses: actions/upload-artifact@v4
         with:
-          name: cxf-${{ matrix.target.os }}-${{ matrix.target.arch }}
-          path: cxf-${{ matrix.target.os }}-${{ matrix.target.arch }}
+          name: cxf-linux-amd64
+          path: cxf-linux-amd64
+
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - run: cp target/release/cxf cxf-darwin-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cxf-darwin-arm64
+          path: cxf-darwin-arm64
 
   release:
-    needs: build
+    needs: [build-linux, build-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
