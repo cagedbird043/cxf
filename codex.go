@@ -425,9 +425,9 @@ func renderAuthDiff(p *Provider) string {
 		return ""
 	}
 	var buf strings.Builder
-	buf.WriteString("\n  ~/.codex/auth.json:\n")
-	buf.WriteString(fmt.Sprintf("  - api_key = %s (current)\n", formatTOMLValue(currentKey)))
-	buf.WriteString(fmt.Sprintf("  + api_key = %s (new)\n", formatTOMLValue(p.APIKey)))
+	buf.WriteString("\n  " + bold("~/.codex/auth.json:") + "\n")
+	buf.WriteString(fmt.Sprintf("  %s\n", red("- api_key = "+formatTOMLValue(currentKey)+" (current)")))
+	buf.WriteString(fmt.Sprintf("  %s\n", green("+ api_key = "+formatTOMLValue(p.APIKey)+" (new)")))
 	return buf.String()
 }
 
