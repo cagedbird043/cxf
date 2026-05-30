@@ -252,17 +252,18 @@ var useCmd = &cobra.Command{
 			return err
 		}
 
-		// Check drift
-		drifted, err := detectCodexDrift(p)
-		if err != nil {
-			return fmt.Errorf("drift check: %w", err)
-		}
-		if len(drifted) > 0 {
-			warn("configuration drift in: %s", strings.Join(drifted, ", "))
-			expected := renderProviderConfig(p)
-			current := extractManagedValues()
-			diffText := renderUnifiedDiff(current, expected)
-			authDiff := renderAuthDiff(p)
+		// 检查漂移 + 显示预期变更
+		drifted, _ := detectCodexDrift(p)
+		expected := renderProviderConfig(p)
+		current := extractManagedValues()
+		diffText := renderUnifiedDiff(current, expected)
+		authDiff := renderAuthDiff(p)
+
+		hasDiff := diffText != "" || authDiff != ""
+		if hasDiff {
+			if len(drifted) > 0 {
+				warn("configuration drift in: %s", strings.Join(drifted, ", "))
+			}
 			fmt.Println()
 			fmt.Println(diffText)
 			if authDiff != "" {
@@ -579,16 +580,16 @@ var claudeUseCmd = &cobra.Command{
 			return err
 		}
 
-		// Check drift
-		drifted, err := detectClaudeDrift(cp)
-		if err != nil {
-			return fmt.Errorf("drift check: %w", err)
-		}
-		if len(drifted) > 0 {
-			warn("configuration drift in: %s", strings.Join(drifted, ", "))
-			expected := renderClaudeProviderConfig(cp)
-			current := extractClaudeManagedValues()
-			diffText := renderUnifiedDiff(current, expected)
+		// 检查漂移 + 显示预期变更
+		drifted, _ := detectClaudeDrift(cp)
+		expected := renderClaudeProviderConfig(cp)
+		current := extractClaudeManagedValues()
+		diffText := renderUnifiedDiff(current, expected)
+
+		if diffText != "" {
+			if len(drifted) > 0 {
+				warn("configuration drift in: %s", strings.Join(drifted, ", "))
+			}
 			fmt.Println()
 			fmt.Println(diffText)
 			if !promptYesNo("overwrite?", false) {
