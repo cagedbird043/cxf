@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use serde_json::{Map, Value};
 use toml_edit::{DocumentMut, value};
 
@@ -96,9 +96,22 @@ pub fn read_json(path: &Path) -> Result<Map<String, Value>> {
     if text.trim().is_empty() {
         return Ok(Map::new());
     }
-    match serde_json::from_str::<Value>(&text) {
-        Ok(Value::Object(map)) => Ok(map),
-        Ok(_) | Err(_) => Ok(Map::new()),
+    let value: Value = serde_json::from_str(&text)
+        .with_context(|| format!("parse {}: invalid JSON", path.display()))?;
+    match value {
+        Value::Object(map) => Ok(map),
+        other => bail!(
+            "{}: expected JSON object, got {}",
+            path.display(),
+            match other {
+                Value::Array(_) => "array",
+                Value::String(_) => "string",
+                Value::Number(_) => "number",
+                Value::Bool(_) => "boolean",
+                Value::Null => "null",
+                _ => "unknown",
+            }
+        ),
     }
 }
 
