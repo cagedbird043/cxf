@@ -124,8 +124,24 @@ pub fn write_secret(path: &Path, data: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).with_context(|| format!("create {}", parent.display()))?;
     }
-    fs::write(path, data).with_context(|| format!("write {}", path.display()))?;
-    chmod_600(path)?;
+    #[cfg(unix)]
+    {
+        use std::io::Write;
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .mode(0o600)
+            .open(path)
+            .with_context(|| format!("create {}", path.display()))?;
+        f.write_all(data)
+            .with_context(|| format!("write {}", path.display()))?;
+    }
+    #[cfg(not(unix))]
+    {
+        fs::write(path, data).with_context(|| format!("write {}", path.display()))?;
+    }
     Ok(())
 }
 
