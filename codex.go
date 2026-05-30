@@ -548,14 +548,6 @@ func detectCodexDrift(p *Provider) ([]string, error) {
 
 	var drifted []string
 
-	// Get current probe
-	lines := strings.Split(raw, "\n")
-	currentProbe := extractProbe(lines)
-	if currentProbe != p.ProviderID {
-		drifted = append(drifted, "probe (expected: "+p.ProviderID+")")
-	}
-
-	// Compare known keys
 	base, _ := loadBase()
 	checks := map[string]func() string{
 		"model": func() string {

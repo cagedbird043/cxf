@@ -107,12 +107,6 @@ func detectClaudeDrift(cp *ClaudeProvider) ([]string, error) {
 
 	var drifted []string
 
-	// Check probe
-	currentProbe := settings.Env[claudeProbeEnvKey]
-	if currentProbe != cp.ProviderID {
-		drifted = append(drifted, "probe (expected: "+cp.ProviderID+")")
-	}
-
 	// Check each managed env key
 	for _, key := range claudeManagedKeys {
 		if key == claudeProbeEnvKey {
