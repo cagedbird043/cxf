@@ -156,7 +156,6 @@ pub fn write_auth(api_key: &str) -> Result<()> {
         "OPENAI_API_KEY".to_string(),
         Value::String(api_key.to_string()),
     );
-    auth.insert("source".to_string(), Value::String("cxf".to_string()));
     write_json(&auth_path(), &auth)
 }
 
