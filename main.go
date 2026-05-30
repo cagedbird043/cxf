@@ -258,10 +258,12 @@ var useCmd = &cobra.Command{
 			return fmt.Errorf("drift check: %w", err)
 		}
 		if len(drifted) > 0 {
-			currentContent := renderProviderConfig(p) // what cxf expects
-			raw, _ := os.ReadFile(codexConfigPath)
-			diffText := renderUnifiedDiff(currentContent, string(raw))
-			printDrift(drifted, diffText)
+			warn("configuration drift in: %s", strings.Join(drifted, ", "))
+			expected := renderProviderConfig(p)
+			current := extractManagedValues()
+			diffText := renderUnifiedDiff(expected, current)
+			fmt.Println()
+			fmt.Println(diffText)
 			if !promptYesNo("overwrite?", false) {
 				info("cancelled")
 				return nil
@@ -350,11 +352,6 @@ var editCmd = &cobra.Command{
 		if !providerExists(name) {
 			return fmt.Errorf("provider %q not found", name)
 		}
-		yes, _ := cmd.Flags().GetBool("yes")
-		if !yes && !promptYesNo(fmt.Sprintf("edit %s?", name), true) {
-			info("cancelled")
-			return nil
-		}
 
 		editor := os.Getenv("EDITOR")
 		if editor == "" {
@@ -362,7 +359,6 @@ var editCmd = &cobra.Command{
 		}
 		path := filepath.Join(providersDir, name+".toml")
 
-		// Open editor
 		cmdEdit := execCommand(editor, path)
 		cmdEdit.Stdin = os.Stdin
 		cmdEdit.Stdout = os.Stdout
@@ -585,11 +581,12 @@ var claudeUseCmd = &cobra.Command{
 			return fmt.Errorf("drift check: %w", err)
 		}
 		if len(drifted) > 0 {
+			warn("configuration drift in: %s", strings.Join(drifted, ", "))
 			expected := renderClaudeProviderConfig(cp)
-			settings, _ := readClaudeSettings()
-			actual := fmt.Sprintf("%v", settings.Env)
-			diffText := renderUnifiedDiff(expected, actual)
-			printDrift(drifted, diffText)
+			current := extractClaudeManagedValues()
+			diffText := renderUnifiedDiff(expected, current)
+			fmt.Println()
+			fmt.Println(diffText)
 			if !promptYesNo("overwrite?", false) {
 				info("cancelled")
 				return nil
@@ -679,11 +676,6 @@ var claudeEditCmd = &cobra.Command{
 		name := args[0]
 		if !claudeProviderExists(name) {
 			return fmt.Errorf("claude provider %q not found", name)
-		}
-		yes, _ := cmd.Flags().GetBool("yes")
-		if !yes && !promptYesNo(fmt.Sprintf("edit %s?", name), true) {
-			info("cancelled")
-			return nil
 		}
 
 		editor := os.Getenv("EDITOR")
@@ -814,6 +806,9 @@ func takeClaudeSnapshot() error {
 	}
 	safeName := strings.ReplaceAll(probe, "/", "_")
 	path := filepath.Join(snapshotsDir, fmt.Sprintf("claude-settings-%s.json", safeName))
+	if err := os.MkdirAll(snapshotsDir, 0755); err != nil {
+		return err
+	}
 	return os.WriteFile(path, data, 0600)
 }
 

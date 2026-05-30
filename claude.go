@@ -137,6 +137,22 @@ func getCurrentClaudeProvider() (string, error) {
 	return settings.Env[claudeProbeEnvKey], nil
 }
 
+// extractClaudeManagedValues reads only the cxf-managed Claude env keys
+// from the current settings and returns them as key=value lines.
+func extractClaudeManagedValues() string {
+	settings, err := readClaudeSettings()
+	if err != nil {
+		return ""
+	}
+	var buf strings.Builder
+	for _, key := range claudeManagedKeys {
+		if v, ok := settings.Env[key]; ok {
+			buf.WriteString(fmt.Sprintf("%s = %q\n", key, v))
+		}
+	}
+	return buf.String()
+}
+
 // renderClaudeProviderConfig returns a string representation of what the
 // Claude provider would write, for drift display.
 func renderClaudeProviderConfig(cp *ClaudeProvider) string {

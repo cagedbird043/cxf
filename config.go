@@ -59,6 +59,18 @@ func init() {
 	claudeSettingsPath = filepath.Join(homeDir(), ".claude", "settings.json")
 }
 
+// testSetRoot overrides all path variables to point inside root.
+// Used by tests for isolation. Must be called before any cxf functions.
+func testSetRoot(root string) {
+	providersDir = filepath.Join(root, "providers")
+	basePath = filepath.Join(root, "base.toml")
+	claudeProvidersDir = filepath.Join(root, "claude-providers")
+	snapshotsDir = filepath.Join(root, "snapshots")
+	codexConfigPath = filepath.Join(root, "codex-config.toml")
+	authPath = filepath.Join(root, "auth.json")
+	claudeSettingsPath = filepath.Join(root, "claude-settings.json")
+}
+
 // ── Layout ─────────────────────────────────────────────────────────────
 
 func ensureLayout() error {
@@ -259,7 +271,6 @@ func writeAuth(apiKey string) error {
 		return nil
 	}
 	existing["OPENAI_API_KEY"] = apiKey
-	existing["source"] = "cxf"
 	return writeJSONFile(authPath, existing)
 }
 

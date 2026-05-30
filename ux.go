@@ -104,14 +104,18 @@ func renderDiff(expected, actual string) string {
 
 func renderUnifiedDiff(expected, actual string) string {
 	dmp := diffmatchpatch.New()
-	diffs := dmp.DiffMain(expected, actual, true)
+
+	// Use DiffLinesToChars for line-level diffs
+	text1, text2, lineArray := dmp.DiffLinesToChars(expected, actual)
+	diffs := dmp.DiffMain(text1, text2, false)
+	diffs = dmp.DiffCharsToLines(diffs, lineArray)
 	diffs = dmp.DiffCleanupSemantic(diffs)
 
 	var buf strings.Builder
 	for _, d := range diffs {
 		switch d.Type {
 		case diffmatchpatch.DiffEqual:
-			buf.WriteString(d.Text)
+			continue // skip equal lines for clean diff
 		case diffmatchpatch.DiffDelete:
 			for _, line := range strings.Split(d.Text, "\n") {
 				if line != "" {

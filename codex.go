@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -98,114 +97,64 @@ func writeCodexConfigRaw(content string) error {
 	return os.WriteFile(codexConfigPath, []byte(content), 0600)
 }
 
-// applyProvider injects a Provider's settings into Codex config.toml and auth.json.
-func applyProvider(p *Provider) error {
-	raw, tree, err := readCodexConfigRaw()
-	if err != nil {
-		return err
-	}
+// ── Line-level config editing ──────────────────────────────────────────
 
-	probe := p.ProviderID
-
-	if raw == "" {
-		// No existing config — create from scratch
-		raw = "# cxf: provider = " + probe + "\n"
-		tree, _ = toml.TreeFromMap(map[string]interface{}{})
-	}
-
-	// ── Remove old probe from raw text ──
-	lines := strings.Split(raw, "\n")
-	cleanedLines := removeProbeLines(lines)
-	cleanedRaw := strings.Join(cleanedLines, "\n")
-
-	// If we had a probe, re-parse without it (clean tree)
-	if extractProbe(lines) != "" {
-		newTree, err := toml.Load(cleanedRaw)
-		if err != nil {
-			// If clean parse fails, use original tree
-			newTree = tree
+// flattenModelProviders removes the empty `[model_providers]` parent header and
+// flattens its sub-sections to top-level (matching Codex native style).
+func flattenModelProviders(lines []string) []string {
+	// Find `[model_providers]` at some indentation level
+	parentIdx := -1
+	var parentIndent string
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "[model_providers]" {
+			parentIdx = i
+			parentIndent = line[:len(line)-len(trimmed)]
+			break
 		}
-		tree = newTree
+	}
+	if parentIdx < 0 {
+		return lines
 	}
 
-	// ── Modify tree values ──
-	base, err := loadBase()
-	if err != nil {
-		return err
-	}
-
-	// Top-level keys
-	tree.Set("model", base.Model)
-	tree.Set("model_provider", p.ModelProviders)
-	tree.Set("review_model", base.ReviewModel)
-	tree.Set("model_reasoning_effort", base.ModelReasoningEffort)
-	tree.Set("model_context_window", base.ModelContextWindow)
-	tree.Set("model_auto_compact_token_limit", base.ModelAutoCompactLimit)
-
-	// Provider-specific overrides
-	if p.ContextWindow != nil {
-		tree.Set("model_context_window", *p.ContextWindow)
-	}
-	if p.AutoCompactTokenLimit != nil {
-		tree.Set("model_auto_compact_token_limit", *p.AutoCompactTokenLimit)
-	}
-
-	// ── model_providers section ──
-	mpSection, _ := toml.TreeFromMap(map[string]interface{}{})
-
-	// Add the new provider's table
-	tableName := p.ProviderTableName()
-	tableData := providerTableMapping(p)
-	tableTree, _ := toml.TreeFromMap(tableData)
-	mpSection.Set(tableName, tableTree)
-
-	// Carry over any non-cxf-managed model_providers tables
-	existingMP := tree.Get("model_providers")
-	if existingMP != nil {
-		if mpTree, ok := existingMP.(*toml.Tree); ok {
-			for _, k := range mpTree.Keys() {
-				if !isManagedProviderName(k) {
-					mpSection.Set(k, mpTree.Get(k))
-				}
+	// Find the end of the parent section: stop at first non-model_providers section
+	endIdx := len(lines)
+	for i := parentIdx + 1; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			if !strings.HasPrefix(trimmed, "[model_providers.") {
+				endIdx = i
+				break
 			}
 		}
 	}
 
-	tree.Set("model_providers", mpSection)
-
-	// ── features section ──
-	featSection, _ := toml.TreeFromMap(map[string]interface{}{})
-	if existingFeat := tree.Get("features"); existingFeat != nil {
-		if featTree, ok := existingFeat.(*toml.Tree); ok {
-			for _, k := range featTree.Keys() {
-				featSection.Set(k, featTree.Get(k))
-			}
+	// Build result: skip parent, flatten sub-sections within scope
+	var result []string
+	for i := 0; i < len(lines); i++ {
+		if i == parentIdx {
+			continue // remove parent header
 		}
+		if i > parentIdx && i < endIdx {
+			trimmed := strings.TrimSpace(lines[i])
+			if trimmed == "" {
+				continue // skip blank lines under parent
+			}
+			// De-indent by removing leading whitespace up to 2 levels
+			// Level 1: `  [model_providers.XXX]` → `[model_providers.XXX]`
+			// Level 2: `    key = val` → `  key = val`
+			cleaned := strings.TrimLeft(lines[i], " \t")
+			// If it was a body line (had more indent than header), add back 2 spaces
+			if len(lines[i])-len(cleaned) > len(parentIndent)+2 {
+				result = append(result, "  "+cleaned)
+			} else {
+				result = append(result, cleaned)
+			}
+			continue
+		}
+		result = append(result, lines[i])
 	}
-	featSection.Set("responses_websockets_v2", p.Websocket)
-	tree.Set("features", featSection)
-
-	// ── Write tree back to string ──
-	var buf bytes.Buffer
-	if _, err := tree.WriteTo(&buf); err != nil {
-		return err
-	}
-	treeContent := buf.String()
-
-	// ── Inject probe ──
-	finalContent := injectProbe(treeContent, probe)
-
-	// ── Write config ──
-	if err := writeCodexConfigRaw(finalContent); err != nil {
-		return err
-	}
-
-	// ── Write auth ──
-	if err := writeAuth(p.APIKey); err != nil {
-		return err
-	}
-
-	return nil
+	return result
 }
 
 // isManagedProviderName checks if a model_providers table name is managed by cxf.
@@ -226,8 +175,351 @@ func isManagedProviderName(name string) bool {
 	return false
 }
 
-// detectCodexDrift checks if the active Codex config differs from what would be written.
-// Returns list of drifted field names.
+// removeCxfManagedSections removes [model_providers.XXX] sections that are managed
+// by cxf but don't match the current tableName. Returns modified lines.
+func removeCxfManagedSections(lines []string, keepTableName string) []string {
+	var result []string
+	i := 0
+	for i < len(lines) {
+		trimmed := strings.TrimSpace(lines[i])
+		// Check if this line starts a model_providers sub-section
+		if strings.HasPrefix(trimmed, "[model_providers.") && strings.HasSuffix(trimmed, "]") {
+			// Extract the table name
+			tableName := trimmed[len("[model_providers.") : len(trimmed)-1]
+			// Check if it's managed by cxf but not the current one
+			if tableName != keepTableName && isManagedProviderName(tableName) {
+				// Skip this section (header + body until next section)
+				i++
+				for i < len(lines) {
+					t := strings.TrimSpace(lines[i])
+					if strings.HasPrefix(t, "[") && strings.HasSuffix(t, "]") {
+						break
+					}
+					i++
+				}
+				continue
+			}
+		}
+		result = append(result, lines[i])
+		i++
+	}
+	return result
+}
+
+// replaceLineForKey finds a line starting with `key = ` and replaces its value.
+// Returns the original lines if key not found.
+func replaceLineForKey(lines []string, key, newValue string) []string {
+	prefix := key + " ="
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, prefix) {
+			// Preserve original indentation
+			indent := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+			lines[i] = indent + key + " = " + newValue
+			break
+		}
+	}
+	return lines
+}
+
+// replaceSection finds a TOML section header `[sectionName]` and replaces
+// its body lines with the given content lines. Detects original indentation.
+// If not found, appends at end with no indentation.
+func replaceSection(lines []string, sectionName string, bodyLines []string) []string {
+	startIdx := -1
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == sectionName {
+			startIdx = i
+			break
+		}
+	}
+
+	// Section not found — append at end
+	if startIdx < 0 {
+		result := make([]string, len(lines))
+		copy(result, lines)
+		result = append(result, "")
+		result = append(result, sectionName)
+		result = append(result, bodyLines...)
+		return result
+	}
+
+	// Detect indentation from the section header itself
+	headerIndent := ""
+	if len(lines[startIdx]) > len(strings.TrimSpace(lines[startIdx])) {
+		headerIndent = lines[startIdx][:len(lines[startIdx])-len(strings.TrimSpace(lines[startIdx]))]
+	}
+	// Body gets headerIndent + 2 spaces (standard TOML sub-table body indentation)
+	bodyIndent := headerIndent + "  "
+
+	// Apply body indentation
+	indentedBody := make([]string, len(bodyLines))
+	for i, bl := range bodyLines {
+		indentedBody[i] = bodyIndent + bl
+	}
+
+	// Find end of section (next `[...]` or EOF)
+	endIdx := len(lines)
+	for i := startIdx + 1; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			endIdx = i
+			break
+		}
+	}
+
+	// Keep the section header, remove old body, insert new body
+	var result []string
+	result = append(result, lines[:startIdx+1]...)
+	result = append(result, indentedBody...)
+	result = append(result, lines[endIdx:]...)
+	return result
+}
+
+// applyProvider injects a Provider's settings into Codex config.toml
+// using targeted line edits — no full-file rewrite.
+func applyProvider(p *Provider) error {
+	// ── Read raw file ──
+	raw, err := os.ReadFile(codexConfigPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+		// No file yet — build from scratch
+		return applyProviderNew(p)
+	}
+	lines := strings.Split(string(raw), "\n")
+
+	base, err := loadBase()
+	if err != nil {
+		return err
+	}
+
+	// ── 1. Remove old probe line ──
+	lines = removeProbeLines(lines)
+
+	// ── 2. Replace managed top-level keys ──
+	lines = replaceLineForKey(lines, "model", fmt.Sprintf("%q", base.Model))
+	lines = replaceLineForKey(lines, "model_provider", fmt.Sprintf("%q", p.ModelProviders))
+	lines = replaceLineForKey(lines, "review_model", fmt.Sprintf("%q", base.ReviewModel))
+	lines = replaceLineForKey(lines, "model_reasoning_effort", fmt.Sprintf("%q", base.ModelReasoningEffort))
+
+	ctx := int64(base.ModelContextWindow)
+	if p.ContextWindow != nil {
+		ctx = int64(*p.ContextWindow)
+	}
+	lines = replaceLineForKey(lines, "model_context_window", fmt.Sprintf("%d", ctx))
+
+	ac := int64(base.ModelAutoCompactLimit)
+	if p.AutoCompactTokenLimit != nil {
+		ac = int64(*p.AutoCompactTokenLimit)
+	}
+	lines = replaceLineForKey(lines, "model_auto_compact_token_limit", fmt.Sprintf("%d", ac))
+
+	// ── 3. Replace features.responses_websockets_v2 ──
+	lines = replaceLineForKey(lines, "responses_websockets_v2", fmt.Sprintf("%v", p.Websocket))
+
+	// ── 4. Clean stale cxf-managed [model_providers.XXX] sections ──
+	tableName := p.ProviderTableName()
+	lines = removeCxfManagedSections(lines, tableName)
+
+	// ── 4b. Flatten model_providers section (remove parent header, de-indent) ──
+	lines = flattenModelProviders(lines)
+
+	// ── 5. Replace/create [model_providers.<tableName>] body ──
+	mapping := providerTableMapping(p)
+	mpKeys := make([]string, 0, len(mapping))
+	for k := range mapping {
+		mpKeys = append(mpKeys, k)
+	}
+	sort.Strings(mpKeys)
+	var mpBody []string
+	for _, k := range mpKeys {
+		mpBody = append(mpBody, fmt.Sprintf("%s = %s", k, formatTOMLValue(mapping[k])))
+	}
+	sectionHeader := fmt.Sprintf("[model_providers.%s]", tableName)
+	lines = replaceSection(lines, sectionHeader, mpBody)
+
+	// ── 5. Inject new probe ──
+	// Find #:schema or insert at top
+	var schemaIdx int
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "#:schema") {
+			schemaIdx = i + 1
+			break
+		}
+	}
+	probeLine := codexProbePrefix + p.ProviderID
+	// Insert probe at correct position
+	var newLines []string
+	newLines = append(newLines, lines[:schemaIdx]...)
+	newLines = append(newLines, probeLine)
+	newLines = append(newLines, lines[schemaIdx:]...)
+
+	// ── 6. Write ──
+	if err := writeCodexConfigRaw(strings.Join(newLines, "\n")); err != nil {
+		return err
+	}
+
+	// ── 7. Auth ──
+	if err := writeAuth(p.APIKey); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyProviderNew creates a fresh Codex config from scratch.
+func applyProviderNew(p *Provider) error {
+	base, err := loadBase()
+	if err != nil {
+		return err
+	}
+
+	var buf strings.Builder
+	buf.WriteString(fmt.Sprintf("%s%s\n", codexProbePrefix, p.ProviderID))
+	buf.WriteString(fmt.Sprintf("model = %s\n", formatTOMLValue(base.Model)))
+	buf.WriteString(fmt.Sprintf("model_provider = %s\n", formatTOMLValue(p.ModelProviders)))
+	buf.WriteString(fmt.Sprintf("review_model = %s\n", formatTOMLValue(base.ReviewModel)))
+	buf.WriteString(fmt.Sprintf("model_reasoning_effort = %s\n", formatTOMLValue(base.ModelReasoningEffort)))
+	ctx := int64(base.ModelContextWindow)
+	if p.ContextWindow != nil {
+		ctx = int64(*p.ContextWindow)
+	}
+	buf.WriteString(fmt.Sprintf("model_context_window = %s\n", formatTOMLValue(ctx)))
+	ac := int64(base.ModelAutoCompactLimit)
+	if p.AutoCompactTokenLimit != nil {
+		ac = int64(*p.AutoCompactTokenLimit)
+	}
+	buf.WriteString(fmt.Sprintf("model_auto_compact_token_limit = %s\n", formatTOMLValue(ac)))
+
+	tableName := p.ProviderTableName()
+	buf.WriteString(fmt.Sprintf("\n[model_providers.%s]\n", tableName))
+	mapping := providerTableMapping(p)
+	mpKeys := make([]string, 0, len(mapping))
+	for k := range mapping {
+		mpKeys = append(mpKeys, k)
+	}
+	sort.Strings(mpKeys)
+	for _, k := range mpKeys {
+		buf.WriteString(fmt.Sprintf("%s = %s\n", k, formatTOMLValue(mapping[k])))
+	}
+
+	buf.WriteString(fmt.Sprintf("\n[features]\nresponses_websockets_v2 = %s\n", formatTOMLValue(p.Websocket)))
+
+	if err := writeCodexConfigRaw(buf.String()); err != nil {
+		return err
+	}
+	return writeAuth(p.APIKey)
+}
+
+func extractManagedValues() string {
+	_, tree, err := readCodexConfigRaw()
+	if err != nil || tree == nil {
+		return ""
+	}
+	var buf strings.Builder
+
+	// Top-level managed keys (same order as renderProviderConfig)
+	keys := []struct {
+		key string
+		def interface{}
+	}{
+		{"model", ""},
+		{"model_provider", ""},
+		{"review_model", ""},
+		{"model_reasoning_effort", ""},
+		{"model_context_window", int64(0)},
+		{"model_auto_compact_token_limit", int64(0)},
+	}
+	for _, k := range keys {
+		if v := tree.Get(k.key); v != nil {
+			buf.WriteString(fmt.Sprintf("%s = %s\n", k.key, formatTOMLValue(v)))
+		}
+	}
+
+	// model_providers section
+	if mp := tree.Get("model_providers"); mp != nil {
+		if mpTree, ok := mp.(*toml.Tree); ok {
+			tableNames := mpTree.Keys()
+			sort.Strings(tableNames)
+			for _, tableName := range tableNames {
+				sectionName := fmt.Sprintf("[model_providers.%s]", tableName)
+				buf.WriteString(fmt.Sprintf("\n%s\n", sectionName))
+				if table := mpTree.Get(tableName); table != nil {
+					if tTree, ok := table.(*toml.Tree); ok {
+						keys := tTree.Keys()
+						sort.Strings(keys)
+						for _, k := range keys {
+							if v := tTree.Get(k); v != nil {
+								buf.WriteString(fmt.Sprintf("%s = %s\n", k, formatTOMLValue(v)))
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// features
+	buf.WriteString("\n[features]\n")
+	if v := tree.Get("features.responses_websockets_v2"); v != nil {
+		buf.WriteString(fmt.Sprintf("responses_websockets_v2 = %v\n", v))
+	} else {
+		buf.WriteString("responses_websockets_v2 = false\n")
+	}
+
+	return buf.String()
+}
+
+func formatTOMLValue(v interface{}) string {
+	switch x := v.(type) {
+	case string:
+		return fmt.Sprintf("%q", x)
+	case int64, float64, bool:
+		return fmt.Sprintf("%v", x)
+	default:
+		return fmt.Sprintf("%v", x)
+	}
+}
+
+func renderProviderConfig(p *Provider) string {
+	var buf strings.Builder
+	base, _ := loadBase()
+
+	buf.WriteString(fmt.Sprintf("model = %s\n", formatTOMLValue(base.Model)))
+	buf.WriteString(fmt.Sprintf("model_provider = %s\n", formatTOMLValue(p.ModelProviders)))
+	buf.WriteString(fmt.Sprintf("review_model = %s\n", formatTOMLValue(base.ReviewModel)))
+	buf.WriteString(fmt.Sprintf("model_reasoning_effort = %s\n", formatTOMLValue(base.ModelReasoningEffort)))
+
+	ctx := int64(base.ModelContextWindow)
+	if p.ContextWindow != nil {
+		ctx = int64(*p.ContextWindow)
+	}
+	buf.WriteString(fmt.Sprintf("model_context_window = %s\n", formatTOMLValue(ctx)))
+
+	ac := int64(base.ModelAutoCompactLimit)
+	if p.AutoCompactTokenLimit != nil {
+		ac = int64(*p.AutoCompactTokenLimit)
+	}
+	buf.WriteString(fmt.Sprintf("model_auto_compact_token_limit = %s\n", formatTOMLValue(ac)))
+
+	buf.WriteString(fmt.Sprintf("\n[model_providers.%s]\n", p.ProviderTableName()))
+	mapping := providerTableMapping(p)
+	keys := make([]string, 0, len(mapping))
+	for k := range mapping {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		buf.WriteString(fmt.Sprintf("%s = %s\n", k, formatTOMLValue(mapping[k])))
+	}
+
+	buf.WriteString(fmt.Sprintf("\n[features]\nresponses_websockets_v2 = %s\n", formatTOMLValue(p.Websocket)))
+
+	return buf.String()
+}
 func detectCodexDrift(p *Provider) ([]string, error) {
 	raw, tree, err := readCodexConfigRaw()
 	if err != nil {
@@ -433,6 +725,10 @@ func takeSnapshot() error {
 		}
 		return err
 	}
+	// Ensure snapshots dir exists
+	if err := os.MkdirAll(snapshotsDir, 0755); err != nil {
+		return err
+	}
 	// Get current provider name for the snapshot filename
 	probe, _ := getCurrentCodexProvider()
 	if probe == "" {
@@ -446,36 +742,17 @@ func takeSnapshot() error {
 
 // ── Generate provider rendering for drift display ──────────────────────
 
-func renderProviderConfig(p *Provider) string {
-	var buf strings.Builder
-	base, _ := loadBase()
-
-	buf.WriteString(fmt.Sprintf("model = %q\n", base.Model))
-	buf.WriteString(fmt.Sprintf("model_provider = %q\n", p.ModelProviders))
-	buf.WriteString(fmt.Sprintf("review_model = %q\n", base.ReviewModel))
-	buf.WriteString(fmt.Sprintf("model_reasoning_effort = %q\n", base.ModelReasoningEffort))
-	buf.WriteString(fmt.Sprintf("model_context_window = %d\n", base.ModelContextWindow))
-	buf.WriteString(fmt.Sprintf("model_auto_compact_token_limit = %d\n", base.ModelAutoCompactLimit))
-
-	if p.ContextWindow != nil {
-		buf.WriteString(fmt.Sprintf("model_context_window = %d  (provider override)\n", *p.ContextWindow))
+// managedCodexKeys returns the top-level keys that cxf manages.
+func managedCodexKeys() []string {
+	return []string{
+		"model",
+		"model_provider",
+		"review_model",
+		"model_reasoning_effort",
+		"model_context_window",
+		"model_auto_compact_token_limit",
 	}
-	if p.AutoCompactTokenLimit != nil {
-		buf.WriteString(fmt.Sprintf("model_auto_compact_token_limit = %d  (provider override)\n", *p.AutoCompactTokenLimit))
-	}
-
-	buf.WriteString(fmt.Sprintf("\n[model_providers.%s]\n", p.ProviderTableName()))
-	mapping := providerTableMapping(p)
-	keys := make([]string, 0, len(mapping))
-	for k := range mapping {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		buf.WriteString(fmt.Sprintf("%s = %v\n", k, mapping[k]))
-	}
-
-	buf.WriteString(fmt.Sprintf("\n[features]\nresponses_websockets_v2 = %v\n", p.Websocket))
-
-	return buf.String()
 }
+
+// extractManagedValues reads only the cxf-managed fields from the current
+// Codex config and returns them in the SAME format as renderProviderConfig.
