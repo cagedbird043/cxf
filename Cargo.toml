@@ -1,0 +1,21 @@
+[package]
+name = "cxf"
+version = "0.1.0"
+edition = "2024"
+description = "Codex / Claude provider pointer manager"
+license = "MIT"
+repository = "https://github.com/cagedbird043/cxf"
+
+[dependencies]
+anyhow = "1.0"
+clap = { version = "4.5", features = ["derive"] }
+serde_json = "1.0"
+similar = "2.7"
+toml_edit = "0.22"
+
+[dev-dependencies]
+tempfile = "3.10"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"

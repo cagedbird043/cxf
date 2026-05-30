@@ -1,18 +1,19 @@
 [![CI](https://github.com/cagedbird043/cxf/actions/workflows/ci.yml/badge.svg)](https://github.com/cagedbird043/cxf/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/cagedbird043/cxf/graph/badge.svg)](https://codecov.io/gh/cagedbird043/cxf)
-[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![Rust](https://img.shields.io/badge/rust-2024-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 # cxf — Codex Provider Pointer Manager
 
 `cxf` 是一个极简的 [Codex](https://github.com/openai/codex) / [Claude Code](https://github.com/anthropics/claude-code) provider 切换工具。它只动 provider 相关字段，不动你其他配置，让你在多个 API 端点之间丝滑切换。
 
+当前实现是 Rust 单二进制版本，Codex `config.toml` 使用 `toml_edit` 做局部编辑，尽量保留用户原文件结构、注释和无关配置。
+
 ## Install
 
-### pip
+### Cargo
 
 ```bash
-pip install git+https://github.com/cagedbird043/cxf.git
+cargo install --git https://github.com/cagedbird043/cxf.git
 ```
 
 ### install.sh（推荐，含 zsh completion）
@@ -152,23 +153,25 @@ cxf 只操作以下 Codex 配置字段：
 
 ## 架构
 
-cxf 分为 6 个模块：
+cxf 分为 6 个 Rust 模块：
 
 ```
-cli.py      — 参数解析 + 命令分发（唯一入口）
-models.py   — Provider 数据类
-config.py   — 所有文件路径、读写、布局初始化
-codex.py    — Codex 专有配置操作（diff/apply/extract）
-claude.py   — Claude Code 专有配置操作
-ux.py       — i18n 翻译、Rich 输出面板、diff 显示
+main.rs    — 入口
+cli.rs     — clap 参数解析 + 命令分发
+models.rs  — Provider / ClaudeProvider 数据结构
+config.rs  — XDG 路径、TOML/JSON/secret 文件读写
+codex.rs   — Codex 配置 apply/status/extract/use
+claude.rs  — Claude Code settings/env apply/status/use
+ux.rs      — prompt / diff / 简单表格输出
 ```
 
 ## 开发者
 
 - **AI Agent 说明**：参见 [`AGENTS.md`](AGENTS.md)
-- 测试：`pytest tests/`（需要 `pytest`）
-- 依赖：`tomlkit>=0.13`, `rich>=13.0`
-- Python >= 3.11
+- 测试：`cargo test`
+- 静态检查：`cargo clippy --all-targets -- -D warnings`
+- 格式化：`cargo fmt`
+- 关键依赖：`clap`, `toml_edit`, `serde_json`, `anyhow`
 
 ## License
 
