@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Inject version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          python3 -c "import re, sys; p = 'Cargo.toml'; c = open(p).read(); c = re.sub(r'(?m)^version\s*=\s*\".*\"', 'version = \"' + sys.argv[1] + '\"', c); open(p, 'w').write(c)" "$VERSION"
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release
       - run: cp target/release/cxf cxf-linux-amd64
@@ -30,6 +34,10 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v4
+      - name: Inject version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          python3 -c "import re, sys; p = 'Cargo.toml'; c = open(p).read(); c = re.sub(r'(?m)^version\s*=\s*\".*\"', 'version = \"' + sys.argv[1] + '\"', c); open(p, 'w').write(c)" "$VERSION"
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo build --release
       - run: cp target/release/cxf cxf-darwin-arm64
