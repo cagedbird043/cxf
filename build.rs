@@ -5,7 +5,7 @@ fn main() {
         // 2. Local development: try to run git describe
         .or_else(|_| {
             std::process::Command::new("git")
-                .args(&["describe", "--tags", "--always"])
+                .args(["describe", "--tags", "--always"])
                 .output()
                 .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         })
