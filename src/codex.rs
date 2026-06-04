@@ -356,7 +356,9 @@ pub fn cmd_use(provider_id: &str) -> Result<()> {
     let after_doc = apply_provider(config, &base, &provider)?;
     let after_config = set_provider_probe(&after_doc.to_string(), &provider.provider_id);
     write_secret(&config_path, after_config.as_bytes())?;
-    write_auth(&provider.api_key)?;
+    if !provider.api_key.is_empty() {
+        write_auth(&provider.api_key)?;
+    }
     let after_auth = read_text(&auth_path)?;
     let config_diff = crate::ux::diff(
         &before_config,
@@ -396,8 +398,11 @@ pub fn cmd_status() -> Result<i32> {
     };
     let config = read_toml(&codex_config_path())?;
     let auth = read_auth()?;
-    let auth_ok =
-        auth.get("OPENAI_API_KEY").and_then(Value::as_str) == Some(provider.api_key.as_str());
+    let auth_ok = if provider.api_key.is_empty() {
+        true // OAuth provider — no API key to check
+    } else {
+        auth.get("OPENAI_API_KEY").and_then(Value::as_str) == Some(provider.api_key.as_str())
+    };
     let drift = provider_drift(&config, &load_base()?, &provider);
     let provider_label = format!("{} -> {}", provider.provider_id, provider.model_providers);
     if drift.is_empty() && auth_ok {

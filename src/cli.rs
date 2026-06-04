@@ -74,6 +74,8 @@ struct AddArgs {
     #[arg(long)]
     api_key: Option<String>,
     #[arg(long)]
+    oauth: bool,
+    #[arg(long)]
     wire_api: Option<String>,
     #[arg(long)]
     no_websocket: bool,
@@ -235,13 +237,18 @@ fn cmd_add(args: AddArgs) -> Result<()> {
         .provider_id
         .unwrap_or_else(|| prompt("provider id", None));
     ensure_provider_id(&provider_id)?;
-    let base_url = args.base_url.unwrap_or_else(|| prompt("base_url", None));
-    let api_key = args.api_key.unwrap_or_else(|| prompt("api_key", None));
-    if base_url.is_empty() {
+    let base_url = if args.oauth {
+        args.base_url.unwrap_or_default()
+    } else {
+        args.base_url.unwrap_or_else(|| prompt("base_url", None))
+    };
+    let api_key = if args.oauth {
+        String::new()
+    } else {
+        args.api_key.unwrap_or_else(|| prompt("api_key", None))
+    };
+    if !args.oauth && base_url.is_empty() {
         bail!("base_url is required");
-    }
-    if api_key.is_empty() {
-        bail!("api_key is required");
     }
     let model_providers = args.model_providers.unwrap_or_else(|| {
         if interactive {
@@ -262,13 +269,18 @@ fn cmd_add(args: AddArgs) -> Result<()> {
     } else {
         !args.no_websocket
     };
+    let requires_openai_auth = if interactive {
+        prompt_bool("requires_openai_auth", false)
+    } else {
+        args.oauth
+    };
     let provider = Provider {
         provider_id,
         model_providers,
         base_url,
         api_key,
         wire_api,
-        requires_openai_auth: true,
+        requires_openai_auth,
         websocket,
         context_window: args.context_window,
         auto_compact_token_limit: args.auto_compact,
@@ -311,8 +323,10 @@ fn cmd_edit(provider_id: &str, yes: bool) -> Result<()> {
         bail!("editor failed");
     }
     let edited = load_provider(provider_id)?;
-    if edited.api_key.is_empty() {
-        bail!("api_key is empty in provider '{provider_id}'. Aborting apply.");
+    if edited.api_key.is_empty() && !edited.requires_openai_auth {
+        bail!(
+            "api_key is empty and requires_openai_auth is false in provider '{provider_id}'. Aborting apply."
+        );
     }
     cmd_use(provider_id)
 }
