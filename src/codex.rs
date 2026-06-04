@@ -356,7 +356,11 @@ pub fn cmd_use(provider_id: &str) -> Result<()> {
     let after_doc = apply_provider(config, &base, &provider)?;
     let after_config = set_provider_probe(&after_doc.to_string(), &provider.provider_id);
     write_secret(&config_path, after_config.as_bytes())?;
-    if !provider.api_key.is_empty() {
+    if provider.api_key.is_empty() {
+        // OAuth provider — clear stale API key from auth.json
+        let empty = serde_json::Map::new();
+        crate::config::write_json(&auth_path, &empty)?;
+    } else {
         write_auth(&provider.api_key)?;
     }
     let after_auth = read_text(&auth_path)?;

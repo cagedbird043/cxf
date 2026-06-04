@@ -103,13 +103,16 @@ impl ClaudeProvider {
 }
 
 pub fn provider_table_items(provider: &Provider) -> Vec<(&'static str, Item)> {
-    vec![
+    let mut items = vec![
         ("name", value(&provider.model_providers)),
-        ("base_url", value(&provider.base_url)),
         ("wire_api", value(&provider.wire_api)),
         ("supports_websockets", value(provider.websocket)),
         ("requires_openai_auth", value(provider.requires_openai_auth)),
-    ]
+    ];
+    if !provider.base_url.is_empty() {
+        items.push(("base_url", value(&provider.base_url)));
+    }
+    items
 }
 
 pub fn provider_id_from_model_provider(name: &str) -> String {
