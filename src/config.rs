@@ -160,7 +160,11 @@ fn chmod_600(_path: &Path) -> Result<()> {
 }
 
 pub fn read_auth() -> Result<Map<String, Value>> {
-    read_json(&auth_path())
+    let path = auth_path();
+    if !path.exists() {
+        return Ok(Map::new());
+    }
+    read_json(&path)
 }
 
 pub fn write_auth(api_key: &str) -> Result<()> {

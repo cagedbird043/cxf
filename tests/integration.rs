@@ -471,3 +471,94 @@ fn completion_contains_provider_functions() -> Result<(), Box<dyn Error>> {
     assert!(text.contains("_cxf_claude_provider_ids"));
     Ok(())
 }
+
+#[test]
+fn codex_use_oauth_deletes_empty_auth_json_and_preserves_tokens() -> Result<(), Box<dyn Error>> {
+    let tmp = tempfile::tempdir()?;
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".codex"))?;
+    fs::create_dir_all(home.join(".config/cxf/providers"))?;
+
+    fs::write(
+        home.join(".codex/config.toml"),
+        r##"# cxf: provider = timi
+model_provider = "OpenAI"
+
+[model_providers.OpenAI]
+base_url = "https://timicc.com"
+"##,
+    )?;
+    fs::write(
+        home.join(".config/cxf/base.toml"),
+        r#"model = "gpt-5.5"
+review_model = "gpt-5.5"
+"#,
+    )?;
+    // Create an OAuth provider (api_key is empty)
+    fs::write(
+        home.join(".config/cxf/providers/oauth.toml"),
+        r#"model_providers = "OpenAI"
+base_url = ""
+api_key = ""
+wire_api = "responses"
+requires_openai_auth = true
+websocket = true
+"#,
+    )?;
+
+    // Scenario 1: auth.json contains only OPENAI_API_KEY.
+    // Switching to OAuth should delete auth.json.
+    fs::write(
+        home.join(".codex/auth.json"),
+        r#"{"OPENAI_API_KEY":"sk-test"}"#,
+    )?;
+    let out1 = run(home, &["use", "oauth"])?;
+    assert!(
+        out1.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out1.stderr)
+    );
+    assert!(
+        !home.join(".codex/auth.json").exists(),
+        "auth.json should be deleted when empty"
+    );
+
+    // Scenario 2: auth.json contains OPENAI_API_KEY and other tokens.
+    // Switching to OAuth should remove OPENAI_API_KEY but preserve the other fields.
+    fs::write(
+        home.join(".codex/auth.json"),
+        r#"{"OPENAI_API_KEY":"sk-test","tokens":{"id_token":"abc"}}"#,
+    )?;
+    let out2 = run(home, &["use", "oauth"])?;
+    assert!(
+        out2.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out2.stderr)
+    );
+    assert!(
+        home.join(".codex/auth.json").exists(),
+        "auth.json should exist when preserving other keys"
+    );
+    let content = fs::read_to_string(home.join(".codex/auth.json"))?;
+    assert!(
+        !content.contains("OPENAI_API_KEY"),
+        "OPENAI_API_KEY should be removed"
+    );
+    assert!(content.contains("tokens"), "tokens should be preserved");
+
+    // Scenario 3: auth.json does not exist.
+    // Switching to OAuth should not fail and should not create auth.json.
+    fs::remove_file(home.join(".codex/auth.json"))?;
+    let out3 = run(home, &["use", "oauth"])?;
+    assert!(
+        out3.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out3.stderr)
+    );
+    assert!(
+        !home.join(".codex/auth.json").exists(),
+        "auth.json should not exist when starting from missing"
+    );
+
+    Ok(())
+}
