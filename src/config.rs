@@ -168,10 +168,10 @@ pub fn read_auth() -> Result<Map<String, Value>> {
 }
 
 pub fn write_auth(api_key: &str) -> Result<()> {
-    let mut auth = read_auth()?;
-    if auth.get("OPENAI_API_KEY").and_then(Value::as_str) == Some(api_key) {
-        return Ok(());
+    if auth_path().exists() {
+        read_auth()?;
     }
+    let mut auth = Map::new();
     auth.insert(
         "OPENAI_API_KEY".to_string(),
         Value::String(api_key.to_string()),

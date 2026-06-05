@@ -360,18 +360,13 @@ pub fn cmd_use(provider_id: &str) -> Result<()> {
     let after_doc = apply_provider(config, &base, &provider)?;
     let after_config = set_provider_probe(&after_doc.to_string(), &provider.provider_id);
     write_secret(&config_path, after_config.as_bytes())?;
-    if provider.api_key.is_empty() {
-        // OAuth provider — clear stale API key from auth.json, preserving other keys
-        let mut auth = read_auth().unwrap_or_default();
-        auth.remove("OPENAI_API_KEY");
-        if auth.is_empty() {
-            if auth_path.exists() {
-                fs::remove_file(&auth_path)?;
-            }
-        } else {
-            crate::config::write_json(&auth_path, &auth)?;
-        }
-    } else {
+    if !provider.api_key.is_empty() {
+        take_snapshot(
+            &auth_path,
+            "codex-auth",
+            &read_provider_probe(&before_config),
+            "json",
+        )?;
         write_auth(&provider.api_key)?;
     }
     let after_auth = if auth_path.exists() {
