@@ -28,10 +28,11 @@ ux.rs      — prompt / diff / 简单表格输出
 |------|------|
 | `~/.config/cxf/base.toml` | 默认 model/review_model 设置（XDG_CONFIG_HOME） |
 | `~/.config/cxf/providers/` | 每个 Codex provider 一个 `.toml` 文件 |
+| `~/.config/cxf/auth/codex/` | 每个 Codex provider 的完整 `auth.json` profile |
 | `~/.config/cxf/claude/providers/` | 每个 Claude provider 一个 `.toml` 文件 |
-| `~/.local/state/cxf/snapshots/` | 切换前自动备份（XDG_STATE_HOME） |
+| `~/.local/state/cxf/snapshots/` | 切换前事故备份（XDG_STATE_HOME） |
 | `~/.codex/config.toml` | Codex 主配置（cxf 注入 `# cxf: provider = <name>` 标记） |
-| `~/.codex/auth.json` | Codex API key 存储 |
+| `~/.codex/auth.json` | Codex 认证状态；cxf 按 provider 做 whole-file profile 保存/恢复 |
 | `~/.claude/settings.json` | Claude Code 配置（cxf 只改 managed env + 顶层 model） |
 
 ## 硬规则
@@ -52,7 +53,7 @@ ux.rs      — prompt / diff / 简单表格输出
   - `model_context_window`, `model_auto_compact_token_limit`
   - `[model_providers.<name>]`
   - `[features].responses_websockets_v2`
-  - `auth.json` 的 `OPENAI_API_KEY`
+  - `auth.json` whole-file provider profile（不解析 OAuth 字段；API-key provider 可由 `api_key` 生成最小 auth）
 - 其他 Codex 配置必须保留。
 - 用户当前倾向：`model_providers` 一般保持 `"OpenAI"`，避免 Codex 历史按 provider key 分裂；如要改，必须明确知道风险。
 

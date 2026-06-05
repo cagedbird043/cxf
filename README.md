@@ -132,13 +132,17 @@ cxf claude status
 ├── providers/                     # 每个 provider 一个 .toml 文件
 │   ├── openai.toml
 │   └── ...
+├── auth/
+│   └── codex/                    # 每个 Codex provider 的完整 auth.json profile
+│       ├── official.json
+│       └── ...
 └── claude/
     └── providers/                 # Claude provider 定义
         ├── deepseek.toml
         └── ...
 
 ~/.local/state/cxf/                # XDG_STATE_HOME → cxf 运行状态
-└── snapshots/                     # 切换前自动备份
+└── snapshots/                     # 切换前事故备份
     └── ...
 ```
 
@@ -148,7 +152,7 @@ cxf 只操作以下 Codex 配置字段：
 - `model_context_window`, `model_auto_compact_token_limit`
 - `[model_providers.<name>]` 块
 - `[features].responses_websockets_v2`
-- `auth.json` 中的 `OPENAI_API_KEY`
+- `auth.json` 作为不透明状态文件按 provider 完整保存/恢复；API-key provider 首次使用时从 `api_key` 生成最小 auth profile
 
 其他所有 Codex 配置保持不动。
 

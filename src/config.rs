@@ -48,6 +48,9 @@ pub fn claude_providers_dir() -> PathBuf {
 pub fn snapshots_dir() -> PathBuf {
     state_home().join("cxf/snapshots")
 }
+pub fn auth_profiles_dir() -> PathBuf {
+    cxf_home().join("auth/codex")
+}
 pub fn codex_config_path() -> PathBuf {
     home_dir().join(".codex/config.toml")
 }
@@ -60,6 +63,7 @@ pub fn claude_settings_path() -> PathBuf {
 
 pub fn ensure_layout() -> Result<()> {
     fs::create_dir_all(providers_dir()).context("create providers dir")?;
+    fs::create_dir_all(auth_profiles_dir()).context("create codex auth profiles dir")?;
     fs::create_dir_all(snapshots_dir()).context("create snapshots dir")?;
     Ok(())
 }
@@ -137,6 +141,7 @@ pub fn write_secret(path: &Path, data: &[u8]) -> Result<()> {
             .with_context(|| format!("create {}", path.display()))?;
         f.write_all(data)
             .with_context(|| format!("write {}", path.display()))?;
+        chmod_600(path)?;
     }
     #[cfg(not(unix))]
     {
@@ -213,14 +218,57 @@ pub fn write_default_base() -> Result<()> {
     write_toml(&path, &doc)
 }
 
+fn safe_provider_file(provider: &str) -> String {
+    provider.replace(['/', '\\'], "_")
+}
+
+fn snapshot_path(prefix: &str, provider: &str, ext: &str) -> PathBuf {
+    snapshots_dir().join(format!("{prefix}-{}.{ext}", safe_provider_file(provider)))
+}
+
+fn auth_profile_path(provider: &str) -> PathBuf {
+    auth_profiles_dir().join(format!("{}.json", safe_provider_file(provider)))
+}
+
 pub fn take_snapshot(source: &Path, prefix: &str, provider: &str, ext: &str) -> Result<()> {
     if !source.exists() {
         return Ok(());
     }
     fs::create_dir_all(snapshots_dir()).context("create snapshots dir")?;
-    let safe = provider.replace(['/', '\\'], "_");
-    let target = snapshots_dir().join(format!("{prefix}-{safe}.{ext}"));
+    let target = snapshot_path(prefix, provider, ext);
     fs::copy(source, &target).context("write snapshot")?;
     chmod_600(&target)?;
     Ok(())
+}
+
+pub fn save_auth_profile(provider: &str) -> Result<bool> {
+    if provider.trim().is_empty() || !auth_path().exists() {
+        return Ok(false);
+    }
+    read_auth()?;
+    fs::create_dir_all(auth_profiles_dir()).context("create codex auth profiles dir")?;
+    let text = read_text(&auth_path())?;
+    write_secret(&auth_profile_path(provider), text.as_bytes())?;
+    Ok(true)
+}
+
+pub fn restore_auth_profile(provider: &str) -> Result<bool> {
+    if provider.trim().is_empty() {
+        return Ok(false);
+    }
+    let profile = auth_profile_path(provider);
+    if !profile.exists() {
+        let legacy_snapshot = snapshot_path("codex-auth", provider, "json");
+        if !legacy_snapshot.exists() {
+            return Ok(false);
+        }
+        read_json(&legacy_snapshot)?;
+        fs::create_dir_all(auth_profiles_dir()).context("create codex auth profiles dir")?;
+        fs::copy(&legacy_snapshot, &profile).context("import legacy auth snapshot")?;
+        chmod_600(&profile)?;
+    }
+    read_json(&profile)?;
+    let text = read_text(&profile)?;
+    write_secret(&auth_path(), text.as_bytes())?;
+    Ok(true)
 }

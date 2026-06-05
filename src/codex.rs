@@ -7,8 +7,8 @@ use toml_edit::{DocumentMut, Item, table, value};
 use crate::{
     config::{
         BASE_KEYS, auth_path, base_path, codex_config_path, ensure_layout, load_base,
-        providers_dir, read_auth, read_text, read_toml, take_snapshot, write_auth,
-        write_default_base, write_secret, write_toml,
+        providers_dir, read_auth, read_text, read_toml, restore_auth_profile, save_auth_profile,
+        take_snapshot, write_auth, write_default_base, write_secret, write_toml,
     },
     models::{
         PROBE_PREFIX, Provider, ensure_provider_id, get_bool, get_i64, get_str,
@@ -313,9 +313,30 @@ pub fn extract_all_providers(current_name: Option<&str>) -> Result<Vec<Provider>
 pub fn cmd_init(name: Option<&str>) -> Result<()> {
     ensure_layout()?;
     write_default_base()?;
+    let config_path = codex_config_path();
+    let before_config = read_text(&config_path)?;
+    let current_model_provider = get_str(&read_toml(&config_path)?, "model_provider")
+        .unwrap_or_else(|| "OpenAI".to_string());
     let providers = extract_all_providers(name)?;
+    let mut current_provider_id = None;
     for provider in &providers {
         write_provider(provider)?;
+        if provider.model_providers == current_model_provider {
+            save_auth_profile(&provider.provider_id)?;
+            current_provider_id = Some(provider.provider_id.as_str());
+        }
+    }
+    if let Some(provider_id) = current_provider_id {
+        take_snapshot(
+            &config_path,
+            "codex-config",
+            &read_provider_probe(&before_config),
+            "toml",
+        )?;
+        write_secret(
+            &config_path,
+            set_provider_probe(&before_config, provider_id).as_bytes(),
+        )?;
     }
     println!("initialized: {}", providers_dir().display());
     for provider in providers {
@@ -350,24 +371,28 @@ pub fn cmd_use(provider_id: &str) -> Result<()> {
     } else {
         String::new()
     };
-    take_snapshot(
-        &config_path,
-        "codex-config",
-        &read_provider_probe(&before_config),
-        "toml",
-    )?;
+    let previous_provider = read_provider_probe(&before_config);
+    save_auth_profile(&previous_provider)?;
+    take_snapshot(&config_path, "codex-config", &previous_provider, "toml")?;
     let config = read_toml(&config_path)?;
     let after_doc = apply_provider(config, &base, &provider)?;
     let after_config = set_provider_probe(&after_doc.to_string(), &provider.provider_id);
     write_secret(&config_path, after_config.as_bytes())?;
-    if !provider.api_key.is_empty() {
-        take_snapshot(
-            &auth_path,
-            "codex-auth",
-            &read_provider_probe(&before_config),
-            "json",
-        )?;
-        write_auth(&provider.api_key)?;
+    let restored = restore_auth_profile(&provider.provider_id)?;
+    if provider.api_key.is_empty() {
+        if !restored {
+            eprintln!(
+                "{} warning: no Codex auth profile for {}, leaving auth.json unchanged",
+                yellow("!"),
+                provider.provider_id
+            );
+        }
+    } else {
+        let auth = read_auth()?;
+        if auth.get("OPENAI_API_KEY").and_then(Value::as_str) != Some(provider.api_key.as_str()) {
+            write_auth(&provider.api_key)?;
+            save_auth_profile(&provider.provider_id)?;
+        }
     }
     let after_auth = if auth_path.exists() {
         read_text(&auth_path)?

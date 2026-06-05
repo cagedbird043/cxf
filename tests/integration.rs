@@ -159,6 +159,39 @@ requires_openai_auth = true
     let provider = fs::read_to_string(home.join(".config/cxf/providers/openai.toml"))?;
     assert!(provider.contains("base_url = \"https://api.openai.example\""));
     assert!(provider.contains("api_key = \"sk-existing\""));
+    let config = fs::read_to_string(home.join(".codex/config.toml"))?;
+    assert!(config.contains("# cxf: provider = openai"));
+
+    assert_eq!(
+        fs::read_to_string(home.join(".config/cxf/auth/codex/openai.json"))?,
+        r#"{"OPENAI_API_KEY":"sk-existing"}"#,
+        "init should save the current live auth profile before any future switch"
+    );
+    fs::write(
+        home.join(".codex/auth.json"),
+        r#"{"OPENAI_API_KEY":"sk-refreshed"}"#,
+    )?;
+    fs::write(
+        home.join(".config/cxf/providers/timi.toml"),
+        r#"model_providers = "OpenAI"
+base_url = "https://timicc.com"
+api_key = "sk-timi"
+wire_api = "responses"
+requires_openai_auth = true
+websocket = false
+"#,
+    )?;
+    let switched = run(home, &["use", "timi"])?;
+    assert!(
+        switched.status.success(),
+        "{}",
+        String::from_utf8_lossy(&switched.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".config/cxf/auth/codex/openai.json"))?,
+        r#"{"OPENAI_API_KEY":"sk-refreshed"}"#,
+        "first post-init switch should save refreshed live auth using the init probe"
+    );
 
     let list = run(home, &["list"])?;
     assert!(
@@ -473,7 +506,7 @@ fn completion_contains_provider_functions() -> Result<(), Box<dyn Error>> {
 }
 
 #[test]
-fn codex_use_oauth_preserves_existing_auth_json() -> Result<(), Box<dyn Error>> {
+fn codex_use_oauth_without_profile_preserves_existing_auth_json() -> Result<(), Box<dyn Error>> {
     let tmp = tempfile::tempdir()?;
     let home = tmp.path();
     fs::create_dir_all(home.join(".codex"))?;
@@ -505,19 +538,8 @@ websocket = true
 "#,
     )?;
 
-    let oauth_auth = r#"{
-  "auth_mode": "chatgpt",
-  "OPENAI_API_KEY": null,
-  "tokens": {
-    "id_token": "id",
-    "access_token": "access",
-    "refresh_token": "refresh",
-    "account_id": "account"
-  },
-  "last_refresh": "2026-06-05T16:05:15.057134715Z"
-}
-"#;
-    fs::write(home.join(".codex/auth.json"), oauth_auth)?;
+    let existing_auth = "{\n  \"OPENAI_API_KEY\": \"sk-test\"\n}\n";
+    fs::write(home.join(".codex/auth.json"), existing_auth)?;
 
     let out = run(home, &["use", "oauth"])?;
     assert!(
@@ -526,13 +548,21 @@ websocket = true
         String::from_utf8_lossy(&out.stderr)
     );
     let content = fs::read_to_string(home.join(".codex/auth.json"))?;
-    assert_eq!(content, oauth_auth, "OAuth auth.json should be untouched");
+    assert_eq!(
+        content, existing_auth,
+        "OAuth provider without auth profile should not destroy live auth"
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".config/cxf/auth/codex/timi.json"))?,
+        existing_auth,
+        "previous provider auth should be saved as a profile"
+    );
 
     Ok(())
 }
 
 #[test]
-fn codex_use_api_key_replaces_oauth_auth_json_with_snapshot() -> Result<(), Box<dyn Error>> {
+fn codex_use_api_key_saves_oauth_profile_and_bootstraps_target() -> Result<(), Box<dyn Error>> {
     let tmp = tempfile::tempdir()?;
     let home = tmp.path();
     fs::create_dir_all(home.join(".codex"))?;
@@ -582,14 +612,225 @@ websocket = false
         "{}",
         String::from_utf8_lossy(&out.stderr)
     );
-    let content = fs::read_to_string(home.join(".codex/auth.json"))?;
+    let api_auth = "{\n  \"OPENAI_API_KEY\": \"sk-test\"\n}\n";
+    assert_eq!(fs::read_to_string(home.join(".codex/auth.json"))?, api_auth);
     assert_eq!(
-        content, "{\n  \"OPENAI_API_KEY\": \"sk-test\"\n}\n",
-        "API-key auth.json should not retain OAuth fields"
+        fs::read_to_string(home.join(".config/cxf/auth/codex/official.json"))?,
+        oauth_auth,
+        "OAuth auth should be saved as an opaque provider profile"
     );
-    let snapshot = home.join(".local/state/cxf/snapshots/codex-auth-official.json");
-    assert!(snapshot.exists(), "OAuth auth.json should be snapshotted");
-    assert_eq!(fs::read_to_string(snapshot)?, oauth_auth);
+    assert_eq!(
+        fs::read_to_string(home.join(".config/cxf/auth/codex/timi.json"))?,
+        api_auth,
+        "API-key auth should be bootstrapped as a provider profile"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn codex_use_restores_target_auth_profile_byte_for_byte() -> Result<(), Box<dyn Error>> {
+    let tmp = tempfile::tempdir()?;
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".codex"))?;
+    fs::create_dir_all(home.join(".config/cxf/providers"))?;
+    fs::create_dir_all(home.join(".config/cxf/auth/codex"))?;
+
+    fs::write(
+        home.join(".codex/config.toml"),
+        r##"# cxf: provider = timi
+model_provider = "OpenAI"
+
+[model_providers.OpenAI]
+base_url = "https://timicc.com"
+"##,
+    )?;
+    fs::write(
+        home.join(".config/cxf/base.toml"),
+        r#"model = "gpt-5.5"
+review_model = "gpt-5.5"
+"#,
+    )?;
+    fs::write(
+        home.join(".config/cxf/providers/official.toml"),
+        r#"model_providers = "OpenAI"
+base_url = ""
+api_key = ""
+wire_api = "responses"
+requires_openai_auth = true
+websocket = true
+"#,
+    )?;
+
+    let api_auth = "{\n  \"OPENAI_API_KEY\": \"sk-test\"\n}\n";
+    fs::write(home.join(".codex/auth.json"), api_auth)?;
+    let oauth_auth = r#"{
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "refresh_token": "refresh"
+  },
+  "last_refresh": "2026-06-05T16:05:15.057134715Z"
+}
+"#;
+    fs::write(
+        home.join(".config/cxf/auth/codex/official.json"),
+        oauth_auth,
+    )?;
+
+    let out = run(home, &["use", "official"])?;
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".codex/auth.json"))?,
+        oauth_auth,
+        "target auth profile should be restored byte-for-byte"
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".config/cxf/auth/codex/timi.json"))?,
+        api_auth,
+        "previous live auth should be saved before restore"
+    );
+
+    Ok(())
+}
+
+#[test]
+fn codex_use_imports_legacy_auth_snapshot_as_profile() -> Result<(), Box<dyn Error>> {
+    let tmp = tempfile::tempdir()?;
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".codex"))?;
+    fs::create_dir_all(home.join(".config/cxf/providers"))?;
+    fs::create_dir_all(home.join(".local/state/cxf/snapshots"))?;
+
+    fs::write(
+        home.join(".codex/config.toml"),
+        r##"# cxf: provider = timi
+model_provider = "OpenAI"
+
+[model_providers.OpenAI]
+base_url = "https://timicc.com"
+"##,
+    )?;
+    fs::write(
+        home.join(".config/cxf/base.toml"),
+        r#"model = "gpt-5.5"
+review_model = "gpt-5.5"
+"#,
+    )?;
+    fs::write(
+        home.join(".config/cxf/providers/official.toml"),
+        r#"model_providers = "OpenAI"
+base_url = ""
+api_key = ""
+wire_api = "responses"
+requires_openai_auth = true
+websocket = true
+"#,
+    )?;
+
+    fs::write(
+        home.join(".codex/auth.json"),
+        "{\n  \"OPENAI_API_KEY\": \"sk-test\"\n}\n",
+    )?;
+    let oauth_auth = r#"{
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "refresh_token": "refresh"
+  }
+}
+"#;
+    fs::write(
+        home.join(".local/state/cxf/snapshots/codex-auth-official.json"),
+        oauth_auth,
+    )?;
+
+    let out = run(home, &["use", "official"])?;
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".codex/auth.json"))?,
+        oauth_auth
+    );
+    assert_eq!(
+        fs::read_to_string(home.join(".config/cxf/auth/codex/official.json"))?,
+        oauth_auth,
+        "legacy snapshot should be imported into normal auth profile storage"
+    );
+
+    Ok(())
+}
+
+#[cfg(unix)]
+#[test]
+fn codex_use_restored_auth_profile_resets_live_auth_permissions() -> Result<(), Box<dyn Error>> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempfile::tempdir()?;
+    let home = tmp.path();
+    fs::create_dir_all(home.join(".codex"))?;
+    fs::create_dir_all(home.join(".config/cxf/providers"))?;
+    fs::create_dir_all(home.join(".config/cxf/auth/codex"))?;
+
+    fs::write(
+        home.join(".codex/config.toml"),
+        r##"# cxf: provider = timi
+model_provider = "OpenAI"
+
+[model_providers.OpenAI]
+base_url = "https://timicc.com"
+"##,
+    )?;
+    fs::write(
+        home.join(".config/cxf/base.toml"),
+        r#"model = "gpt-5.5"
+review_model = "gpt-5.5"
+"#,
+    )?;
+    fs::write(
+        home.join(".config/cxf/providers/official.toml"),
+        r#"model_providers = "OpenAI"
+base_url = ""
+api_key = ""
+wire_api = "responses"
+requires_openai_auth = true
+websocket = true
+"#,
+    )?;
+
+    let auth_path = home.join(".codex/auth.json");
+    fs::write(&auth_path, "{\n  \"OPENAI_API_KEY\": \"sk-test\"\n}\n")?;
+    let mut perms = fs::metadata(&auth_path)?.permissions();
+    perms.set_mode(0o644);
+    fs::set_permissions(&auth_path, perms)?;
+
+    let oauth_auth = r#"{
+  "auth_mode": "chatgpt",
+  "OPENAI_API_KEY": null,
+  "tokens": {
+    "refresh_token": "refresh"
+  }
+}
+"#;
+    fs::write(
+        home.join(".config/cxf/auth/codex/official.json"),
+        oauth_auth,
+    )?;
+
+    let out = run(home, &["use", "official"])?;
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(fs::metadata(auth_path)?.permissions().mode() & 0o777, 0o600);
 
     Ok(())
 }
