@@ -30,6 +30,30 @@ jobs:
           name: cxf-zsh-completion
           path: _cxf
 
+  build-linux-arm64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inject version from tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          python3 -c "import re, sys; p = 'Cargo.toml'; c = open(p).read(); c = re.sub(r'(?m)^version\s*=\s*\".*\"', 'version = \"' + sys.argv[1] + '\"', c); open(p, 'w').write(c)" "$VERSION"
+      - name: Install cross-compilation dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-unknown-linux-gnu
+      - run: cargo build --release --target aarch64-unknown-linux-gnu
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      - run: cp target/aarch64-unknown-linux-gnu/release/cxf cxf-linux-arm64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cxf-linux-arm64
+          path: cxf-linux-arm64
+
   build-macos:
     runs-on: macos-14
     steps:
@@ -47,7 +71,7 @@ jobs:
           path: cxf-darwin-arm64
 
   release:
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-linux-arm64, build-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -71,7 +95,7 @@ jobs:
           generate_release_notes: true
 
   update-homebrew:
-    needs: [build-linux, build-macos]
+    needs: [build-linux, build-linux-arm64, build-macos]
     runs-on: ubuntu-latest
     if: github.repository == 'cagedbird043/cxf'
     steps:
@@ -92,6 +116,7 @@ jobs:
         id: shas
         run: |
           echo "linux_sha=$(sha256sum cxf-linux-amd64 | cut -d' ' -f1)" >> "$GITHUB_ENV"
+          echo "linux_arm_sha=$(sha256sum cxf-linux-arm64 | cut -d' ' -f1)" >> "$GITHUB_ENV"
           echo "darwin_arm_sha=$(sha256sum cxf-darwin-arm64 | cut -d' ' -f1)" >> "$GITHUB_ENV"
           echo "completion_sha=$(sha256sum _cxf | cut -d' ' -f1)" >> "$GITHUB_ENV"
 
@@ -108,7 +133,9 @@ jobs:
             homebrew-tap/Formula/cxf.rb "$VERSION" \
             "${{ env.linux_sha }}" \
             "${{ env.darwin_arm_sha }}" \
-            "${{ env.completion_sha }}"
+            "${{ env.completion_sha }}" \
+            "${{ env.linux_arm_sha }}"
+
           cd homebrew-tap
           git add Formula/cxf.rb
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
